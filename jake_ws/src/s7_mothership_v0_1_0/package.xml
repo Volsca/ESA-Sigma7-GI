@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>s7_mothership_v0_1_0</name>
+  <version>0.1.0</version>
+  <description>S7Mothership is the foundation to an interface connecting the Sigma_7 to a reusable library</description>
+  <maintainer email="spaceship.ecsat@gmail.com">spaceship03</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
