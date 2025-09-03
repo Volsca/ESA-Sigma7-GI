@@ -23,6 +23,9 @@ setup(
     entry_points={
         "console_scripts": [
             "StateSubscriber = s7statesub.StateSub:main",
+            "ForcePublisher = s7statesub.ForcePub:main",
+            "InterfaceMsgSubscriber = s7statesub.IntMsgSub:main", 
+            "InstructionPublisher = s7statesub.InstructionPub:main"     
         ],
     },
 )
