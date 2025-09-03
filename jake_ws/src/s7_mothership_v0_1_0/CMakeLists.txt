@@ -21,7 +21,7 @@ target_include_directories(s7_mothership_node PUBLIC
 
 # link .so files
 target_link_directories(s7_mothership_node PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lib
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/libs
 )
 
 # link libraries
@@ -31,7 +31,7 @@ target_link_libraries(s7_mothership_node
 )
 
 set_target_properties(s7_mothership_node PROPERTIES
-  BUILD_RPATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lib"
+  BUILD_RPATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/libs"
 )
 
 
@@ -48,7 +48,7 @@ install(DIRECTORY include/
 install(DIRECTORY third_party/include/
   DESTINATION include
 )
-install(DIRECTORY third_party/lib/
+install(DIRECTORY third_party/libs/
   DESTINATION lib
 )
 
