@@ -4,6 +4,7 @@ build/
 bin/
 lib/
 install/
+.vscode/
 msg_gen/
 srv_gen/
 msg/*Action.msg

@@ -1,11 +1,24 @@
 #include <chrono>
 #include <memory>
+#include <thread>
 #include "drdc.h"
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/wrench_stamped.hpp"
 
 #pragma region subclasses & enums
+/**
+ * @enum S7Mode
+ * @brief State Machine definitions for different modes used by the S7Mothership
+ * & the S7Controller.
+ */
+enum S7Mode
+{
+    BRAKING,
+    FREE,
+    SELF_CENTERING
+};
+
 /**
  * @class S7StatePublisher
  * @brief ROS2 node that publishes the current state as a  (TODO)PoseStamped message.
@@ -156,32 +169,156 @@ private:
     }
 };
 
+/**
+ * @class TODO
+ */
 class S7InterfaceControlPublisher : public rclcpp::Node
 {
 public:
     S7InterfaceControlPublisher() : Node("state_publisher") {}
 };
 
+/**
+ * @class TODO
+ */
 class S7InterfaceControlsubscriber : public rclcpp::Node
 {
 public:
     S7InterfaceControlsubscriber() : Node("state_publisher") {}
 };
 
-class S7Controller
+class S7Controller//: public rclcpp::node
 {
+private:
+    /**
+     * @brief neutral angles of the encoders, 8 values for the sigma 7
+     */
+    double positionCenter[DHD_MAX_DOF] = {};
+    S7Mode current_mode_;
+    bool running_;
+
+public:
+    S7Controller() {}
+    ~S7Controller()
+    {
+        stop();
+    }
+
+    int run()
+    {
+        if (running_)
+        {
+            return 0;
+        }
+        else
+        {
+            loop();
+            running_ = true;
+            return 1;
+        }
+    }
+
+    int stop()
+    {
+        if (running_)
+        {
+            running_ = false;
+            return 1;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
+private:
+    void loop()
+    {
+        using namespace std::chrono;
+        const auto period = microseconds(2000);
+
+        if (!hapticInit())
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("S7Controller"), "failed to initialize Sigma7, make sure"
+                                                             "device is on and connected, and Mothership"
+                                                             "is launched with root privileges.");
+        }
+
+        while (running_)
+        {
+            auto start = steady_clock::now();
+
+            // TODO, data aquisition
+
+            // TODO, control section
+
+            auto elapsed = steady_clock::now() - start;
+            if (elapsed < period)
+            {
+                std::this_thread::sleep_for(period - elapsed);
+            }
+            else
+            {
+                auto overrun = duration_cast<microseconds>(elapsed - period).count();
+                RCLCPP_WARN(rclcpp::get_logger("S7Controller"),
+                            "main control loop too slow by %ld microseconds.", overrun);
+            }
+        }
+
+        // Close the connection to the haptic device.
+        if (drdClose() < 0)
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("S7Controller"), "error: failed to close the connection (%s)", dhdErrorGetLastStr());
+            dhdSleep(2.0);
+            return;
+        }
+
+        RCLCPP_INFO(rclcpp::get_logger("S7Controller"), "connexion closed.\n");
+    }
+
+    int hapticInit()
+    {
+        if ((drdOpen() < 0))
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("S7Controller"), "error: failed to open device (%s)", dhdErrorGetLastStr());
+            dhdSleep(2.0);
+            return -1;
+        }
+
+        RCLCPP_INFO(rclcpp::get_logger("S7Controller"), "%s device detected.\n\n"
+                                                        "WARNING, do NOT touch Sigma7 during caibration.\n\n",
+                    dhdGetSystemName());
+
+        if ((drdCheckInit() < 0))
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("S7Controller"), "error: failed to reinitialize device (%s)", dhdErrorGetLastStr());
+            dhdSleep(2.0);
+            return -1;
+        }
+        RCLCPP_INFO(rclcpp::get_logger("S7Controller"), "moving to :");
+        for (int i = 0; i < DHD_MAX_DOF; ++i)
+        {
+            RCLCPP_INFO(rclcpp::get_logger("S7Controller"), "%f", positionCenter[i]);
+        }
+        RCLCPP_INFO(rclcpp::get_logger("S7Controller"), "\n");
+        if (drdMoveTo(positionCenter) < 0)
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("S7Controller"), "error: failed to move device (%s)", dhdErrorGetLastStr());
+            dhdSleep(2.0);
+            return -1;
+        }
+        // Stop the regulation thread but leaves the forces enabled on the device.
+        if (drdStop(true) < 0)
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("S7Controller"), "error: failed to stop robotic regulation device (%s)", dhdErrorGetLastStr());
+            dhdSleep(2.0);
+            return -1;
+        }
+        RCLCPP_INFO(rclcpp::get_logger("S7Controller"), "Successfully initialised device : %s", dhdGetSystemName());
+        return 1;
+    }
 };
 
-class S7RingBuffer
-{
-};
-
-enum S7Mode
-{
-    BRAKING,
-    FREE,
-    SELF_CENTERING
-};
 #pragma endregion
 
 class S7Mothership : public rclcpp::Node
@@ -193,8 +330,6 @@ private:
     S7Controller Controller_;
     S7InterfaceControlPublisher ControlPublisher_;
     S7InterfaceControlsubscriber ControlSubscriber_;
-    S7RingBuffer forceMessages_;
-    S7RingBuffer stateMessages_;
     S7Mode CurrentMode_;
     S7Mode RequestedMode_;
 };
