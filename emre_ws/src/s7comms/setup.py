@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = "s7statesub"
+package_name = "s7comms"
 
 setup(
     name=package_name,
@@ -17,15 +17,15 @@ setup(
     zip_safe=True,
     maintainer="Emre",
     maintainer_email="emre.artar@ext.esa.int",
-    description="Sigma 7 state subscriber which gets pose information from the controller",
+    description="Sigma 7 communication package for force and pose information",
     license="Apache-2.0",
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            "StateSubscriber = s7statesub.StateSub:main",
-            "ForcePublisher = s7statesub.ForcePub:main",
-            "InterfaceMsgSubscriber = s7statesub.IntMsgSub:main", 
-            "InstructionPublisher = s7statesub.InstructionPub:main"     
+            "StateSubscriber = s7comms.StateSub:main",
+            "ForcePublisher = s7comms.ForcePub:main",
+            "InterfaceMsgSubscriber = s7comms.IntMsgSub:main",
+            "InstructionPublisher = s7comms.InstructionPub:main",
         ],
     },
 )
