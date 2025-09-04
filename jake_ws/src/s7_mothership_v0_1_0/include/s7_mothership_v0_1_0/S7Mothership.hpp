@@ -3,6 +3,7 @@
 #include "drdc.h"
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
+#include "geometry_msgs/msg/wrench_stamped.hpp"
 
 #pragma region subclasses & enums
 /**
@@ -78,10 +79,81 @@ public:
     }
 };
 
+/**
+ * @class S7ForceSubscriber
+ * @brief ROS2 node that subscribes to controller_wrench_topic and recieves F.F. instructions from S7Spaceship
+ *
+ * This class manages a subscriber for the S7Mothership, taking care of storing the current wrench msg.
+ */
 class S7ForceSubscriber : public rclcpp::Node
 {
+private:
+    /**
+     * @brief ROS2 subscriber for WrenchStamped messages.
+     */
+    rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr subscriber_;
+
+    /**
+     * @brief latest recieved F.F. message from S7Spaceship
+     */
+    geometry_msgs::msg::WrenchStamped::SharedPtr current_wrench_;
+
 public:
-    S7ForceSubscriber() : Node("state_publisher") {}
+    /**
+     * @brief Constructor for S7ForceSubscriber node.
+     *
+     * Initializes the ROS2 node with the name "wrench_subscriber"
+     * and creates a subscriber on the topic "controller_wrench_stamped"
+     * containing F.F. instructions for the S7 arm, which is published
+     * to by a component of S7Spaceship.
+     */
+    S7ForceSubscriber() : Node("wrench_subscriber")
+    {
+        subscriber_ = this->create_subscription<geometry_msgs::msg::WrenchStamped>(
+            "controller_wrench_stamped", 1,
+            std::bind(&S7ForceSubscriber::messageCallback, this, std::placeholders::_1));
+    }
+
+    /**
+     * @brief Getter for current_wrench_
+     *
+     * @returns a geometry_msgs::msg::WrenchStamped::SharedPtr
+     */
+    geometry_msgs::msg::WrenchStamped::SharedPtr getCurrentWrench()
+    {
+        if (current_wrench_)
+        {
+            return current_wrench_;
+        }
+        else
+        {
+            RCLCPP_WARN(get_logger(), "current_wrench_ null when getting");
+            return current_wrench_;
+        }
+    }
+
+    /**
+     * @brief Setter for current_wrench_
+     */
+    void setCurrentWrench(geometry_msgs::msg::WrenchStamped::SharedPtr wrench) { current_wrench_ = wrench; }
+
+private:
+    /**
+     * @brief Callback function for the subscriber, storing the message
+     * in current_wrench_
+     */
+    void messageCallback(const geometry_msgs::msg::WrenchStamped::SharedPtr message)
+    {
+        if (message)
+        {
+            setCurrentWrench(message);
+        }
+        else
+        {
+            RCLCPP_WARN(get_logger(), "message in S7ForceSubscriber is null when setting current_wrench_");
+            setCurrentWrench(message);
+        }
+    }
 };
 
 class S7InterfaceControlPublisher : public rclcpp::Node
