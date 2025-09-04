@@ -8,6 +8,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 # add executables
 add_executable(s7_mothership_node src/S7Mothership.cpp)
@@ -34,9 +35,11 @@ set_target_properties(s7_mothership_node PROPERTIES
   BUILD_RPATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/libs"
 )
 
-
 # setup dependencies
-ament_target_dependencies(s7_mothership_node rclcpp)
+ament_target_dependencies(s7_mothership_node
+  rclcpp
+  geometry_msgs
+  )
 
 # install the executable/headers/3rd-party headers and libs
 install(TARGETS s7_mothership_node
