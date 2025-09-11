@@ -15,16 +15,13 @@ class InstructionPub(Node):
             String, "control_instruction_topic", 1
         )
 
-        # Timer for publishing wrench messages at 100Hz
-        self.timer = self.create_timer(0.001, self.timer_callback)
-
-    def timer_callback(self):
-        msg = String()
-        # Populate the message fields with appropriate data
-        msg.data = "Control instruction data"
-
-        self.publisher_.publish(msg)
-        self.get_logger().info(f"Published instruction: {msg.data}")
+    def sendInstruction(self, msg: String):
+        try:
+            self.publisher_.publish(msg)
+            self.get_logger().info(f"Published instruction: {msg.data}")
+        except Exception as e:
+            self.get_logger().error(f"Failed to publish instruction: {e}")
+            return
 
 
 def main(args=None):

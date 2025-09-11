@@ -20,18 +20,17 @@ class ForcePub(Node):
 
     def timer_callback(self):
         msg = WrenchStamped()
-        # Populate the message fields with appropriate data
 
         now = self.get_clock().now().to_msg()
         msg.header.stamp = now
 
-        # Example force and torque values (replace with actual computation)
-        dx = 0.0  # Force in x-direction
-        dy = 0.0  # Force in y-direction
-        dz = 0.0  # Force in z-direction
-        ta = 0.0  # Torque around x-axis
-        tb = 0.0  # Torque around y-axis
-        tg = 0.0  # Torque around z-axis
+        # Get force values from class attributes (set externally)
+        dx = getattr(self, "force_x", 0.0)
+        dy = getattr(self, "force_y", 0.0)
+        dz = getattr(self, "force_z", 0.0)
+        ta = getattr(self, "torque_x", 0.0)
+        tb = getattr(self, "torque_y", 0.0)
+        tg = getattr(self, "torque_z", 0.0)
 
         msg.wrench.force.x = dx
         msg.wrench.force.y = dy
@@ -40,12 +39,26 @@ class ForcePub(Node):
         msg.wrench.torque.y = tb
         msg.wrench.torque.z = tg
 
-        self.publisher_.publish(msg)
-        self.get_logger().info(
-            f"Published Wrench @ {now.sec}.{now.nanosec}: "
-            f"Force=({dx:.2f}, {dy:.2f}, {dz:.2f}), "
-            f"Torque=({ta:.2f}, {tb:.2f}, {tg:.2f})"
-        )
+        try:
+            self.publisher_.publish(msg)
+            if any([dx, dy, dz, ta, tb, tg]):
+                self.get_logger().info(
+                    f"Published force wrench (fx={msg.wrench.force.x}, fy={msg.wrench.force.y}, fz={msg.wrench.force.z}, "
+                    f"tx={msg.wrench.torque.x}, ty={msg.wrench.torque.y}, tz={msg.wrench.torque.z})"
+                )
+                self.set_forces(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        except Exception as e:
+            self.get_logger().error(f"Failed to publish force wrench: {e}")
+            return
+
+    def set_forces(self, fx=0.0, fy=0.0, fz=0.0, tx=0.0, ty=0.0, tz=0.0):
+        """Set the force and torque values to be published"""
+        self.force_x = fx
+        self.force_y = fy
+        self.force_z = fz
+        self.torque_x = tx
+        self.torque_y = ty
+        self.torque_z = tz
 
 
 def main(args=None):
