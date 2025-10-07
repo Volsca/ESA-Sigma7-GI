@@ -1,0 +1,145 @@
+\doxysection{S7\+Controller Class Reference}
+\hypertarget{classS7Controller}{}\label{classS7Controller}\index{S7Controller@{S7Controller}}
+
+
+Object in charge of managing the control and data aquisition loop of the Sigma7. Links using same-\/name functions in \doxylink{classS7Mothership}{S7\+Mothership}.  
+
+
+
+
+{\ttfamily \#include $<$S7\+Mothership.\+hpp$>$}
+
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{classS7Controller_a4f0d2dee2ec33ce54fcd0c2cf28d1d1d}{S7\+Controller}} ()
+\begin{DoxyCompactList}\small\item\em constructor of \doxylink{classS7Controller}{S7\+Controller} \end{DoxyCompactList}\item 
+\mbox{\hyperlink{classS7Controller_a497cff26298873976b5c8b4685cfe0f0}{\texorpdfstring{$\sim$}{\string~}\+S7\+Controller}} ()
+\begin{DoxyCompactList}\small\item\em destructor of \doxylink{classS7Controller}{S7\+Controller}, stops the control loop. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classS7Controller_a1fe38897931c5808a6a69fa4155bd16b}{run}} ()
+\begin{DoxyCompactList}\small\item\em tells the control loop to start \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classS7Controller_a7c5f27eb50c0188bdd25cfe0cfe24f67}{stop}} ()
+\begin{DoxyCompactList}\small\item\em tells the control loop to stop \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsubsection*{Private Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{classS7Controller_ab79ddf306c0b00f799fb74a5c16470ef}{loop}} ()
+\begin{DoxyCompactList}\small\item\em control loop for the Sigma7 \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classS7Controller_ae5aeda63056ac4f2410350db8d397c6a}{haptic\+Init}} ()
+\begin{DoxyCompactList}\small\item\em configuration function for the Sigma7, sets the encoders and checks connexion before enabling FF on the arm. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsubsection*{Private Attributes}
+\begin{DoxyCompactItemize}
+\item 
+double \mbox{\hyperlink{classS7Controller_a5fe32fca238c9a1dfd64fea6c6c1ba98}{position\+Center}} \mbox{[}DHD\+\_\+\+MAX\+\_\+\+DOF\mbox{]} = \{\}
+\begin{DoxyCompactList}\small\item\em neutral angles of the encoders, 8 values for the sigma 7 \end{DoxyCompactList}\item 
+\mbox{\hyperlink{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268}{S7\+Mode}} \mbox{\hyperlink{classS7Controller_a11338b5c2739023374ba7464fb55628e}{current\+\_\+mode\+\_\+}}
+\begin{DoxyCompactList}\small\item\em the current active mode of \doxylink{classS7Controller}{S7\+Controller}. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{classS7Controller_a798c7ffbc1f8cd374b387a7617d6de36}{running\+\_\+}}
+\begin{DoxyCompactList}\small\item\em if the main loop is still running \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Object in charge of managing the control and data aquisition loop of the Sigma7. Links using same-\/name functions in \doxylink{classS7Mothership}{S7\+Mothership}. 
+
+\doxysubsection{Constructor \& Destructor Documentation}
+\Hypertarget{classS7Controller_a4f0d2dee2ec33ce54fcd0c2cf28d1d1d}\label{classS7Controller_a4f0d2dee2ec33ce54fcd0c2cf28d1d1d} 
+\index{S7Controller@{S7Controller}!S7Controller@{S7Controller}}
+\index{S7Controller@{S7Controller}!S7Controller@{S7Controller}}
+\doxysubsubsection{\texorpdfstring{S7Controller()}{S7Controller()}}
+{\footnotesize\ttfamily S7\+Controller\+::\+S7\+Controller (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+constructor of \doxylink{classS7Controller}{S7\+Controller} 
+
+\Hypertarget{classS7Controller_a497cff26298873976b5c8b4685cfe0f0}\label{classS7Controller_a497cff26298873976b5c8b4685cfe0f0} 
+\index{S7Controller@{S7Controller}!````~S7Controller@{\texorpdfstring{$\sim$}{\string~}S7Controller}}
+\index{````~S7Controller@{\texorpdfstring{$\sim$}{\string~}S7Controller}!S7Controller@{S7Controller}}
+\doxysubsubsection{\texorpdfstring{\texorpdfstring{$\sim$}{\string~}S7Controller()}{\string~S7Controller()}}
+{\footnotesize\ttfamily S7\+Controller\+::\texorpdfstring{$\sim$}{\string~}\+S7\+Controller (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+destructor of \doxylink{classS7Controller}{S7\+Controller}, stops the control loop. 
+
+
+
+\doxysubsection{Member Function Documentation}
+\Hypertarget{classS7Controller_ae5aeda63056ac4f2410350db8d397c6a}\label{classS7Controller_ae5aeda63056ac4f2410350db8d397c6a} 
+\index{S7Controller@{S7Controller}!hapticInit@{hapticInit}}
+\index{hapticInit@{hapticInit}!S7Controller@{S7Controller}}
+\doxysubsubsection{\texorpdfstring{hapticInit()}{hapticInit()}}
+{\footnotesize\ttfamily int S7\+Controller\+::haptic\+Init (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}, {\ttfamily [private]}}
+
+
+
+configuration function for the Sigma7, sets the encoders and checks connexion before enabling FF on the arm. 
+
+\Hypertarget{classS7Controller_ab79ddf306c0b00f799fb74a5c16470ef}\label{classS7Controller_ab79ddf306c0b00f799fb74a5c16470ef} 
+\index{S7Controller@{S7Controller}!loop@{loop}}
+\index{loop@{loop}!S7Controller@{S7Controller}}
+\doxysubsubsection{\texorpdfstring{loop()}{loop()}}
+{\footnotesize\ttfamily void S7\+Controller\+::loop (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}, {\ttfamily [private]}}
+
+
+
+control loop for the Sigma7 
+
+Data is aquired here and shipped off to the \doxylink{classS7Mothership}{S7\+Mothership}, FF is applied here also, all at a \texorpdfstring{$\sim$}{\string~}500\+Hz refresh rate \Hypertarget{classS7Controller_a1fe38897931c5808a6a69fa4155bd16b}\label{classS7Controller_a1fe38897931c5808a6a69fa4155bd16b} 
+\index{S7Controller@{S7Controller}!run@{run}}
+\index{run@{run}!S7Controller@{S7Controller}}
+\doxysubsubsection{\texorpdfstring{run()}{run()}}
+{\footnotesize\ttfamily int S7\+Controller\+::run (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+tells the control loop to start 
+
+\Hypertarget{classS7Controller_a7c5f27eb50c0188bdd25cfe0cfe24f67}\label{classS7Controller_a7c5f27eb50c0188bdd25cfe0cfe24f67} 
+\index{S7Controller@{S7Controller}!stop@{stop}}
+\index{stop@{stop}!S7Controller@{S7Controller}}
+\doxysubsubsection{\texorpdfstring{stop()}{stop()}}
+{\footnotesize\ttfamily int S7\+Controller\+::stop (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+tells the control loop to stop 
+
+
+
+\doxysubsection{Member Data Documentation}
+\Hypertarget{classS7Controller_a11338b5c2739023374ba7464fb55628e}\label{classS7Controller_a11338b5c2739023374ba7464fb55628e} 
+\index{S7Controller@{S7Controller}!current\_mode\_@{current\_mode\_}}
+\index{current\_mode\_@{current\_mode\_}!S7Controller@{S7Controller}}
+\doxysubsubsection{\texorpdfstring{current\_mode\_}{current\_mode\_}}
+{\footnotesize\ttfamily \mbox{\hyperlink{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268}{S7\+Mode}} S7\+Controller\+::current\+\_\+mode\+\_\+\hspace{0.3cm}{\ttfamily [private]}}
+
+
+
+the current active mode of \doxylink{classS7Controller}{S7\+Controller}. 
+
+\Hypertarget{classS7Controller_a5fe32fca238c9a1dfd64fea6c6c1ba98}\label{classS7Controller_a5fe32fca238c9a1dfd64fea6c6c1ba98} 
+\index{S7Controller@{S7Controller}!positionCenter@{positionCenter}}
+\index{positionCenter@{positionCenter}!S7Controller@{S7Controller}}
+\doxysubsubsection{\texorpdfstring{positionCenter}{positionCenter}}
+{\footnotesize\ttfamily double S7\+Controller\+::position\+Center\mbox{[}DHD\+\_\+\+MAX\+\_\+\+DOF\mbox{]} = \{\}\hspace{0.3cm}{\ttfamily [private]}}
+
+
+
+neutral angles of the encoders, 8 values for the sigma 7 
+
+\Hypertarget{classS7Controller_a798c7ffbc1f8cd374b387a7617d6de36}\label{classS7Controller_a798c7ffbc1f8cd374b387a7617d6de36} 
+\index{S7Controller@{S7Controller}!running\_@{running\_}}
+\index{running\_@{running\_}!S7Controller@{S7Controller}}
+\doxysubsubsection{\texorpdfstring{running\_}{running\_}}
+{\footnotesize\ttfamily bool S7\+Controller\+::running\+\_\+\hspace{0.3cm}{\ttfamily [private]}}
+
+
+
+if the main loop is still running 
+
+
+
+The documentation for this class was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+include/s7\+\_\+mothership\+\_\+v0\+\_\+1\+\_\+0/\mbox{\hyperlink{S7Mothership_8hpp}{S7\+Mothership.\+hpp}}\end{DoxyCompactItemize}
