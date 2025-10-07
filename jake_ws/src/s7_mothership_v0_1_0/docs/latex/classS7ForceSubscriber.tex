@@ -1,0 +1,132 @@
+\doxysection{S7\+Force\+Subscriber Class Reference}
+\hypertarget{classS7ForceSubscriber}{}\label{classS7ForceSubscriber}\index{S7ForceSubscriber@{S7ForceSubscriber}}
+
+
+ROS2 node that subscribes to controller\+\_\+wrench\+\_\+topic and recieves F.\+F. instructions from S7\+Spaceship.  
+
+
+
+
+{\ttfamily \#include $<$S7\+Mothership.\+hpp$>$}
+
+
+
+Inheritance diagram for S7\+Force\+Subscriber\+:\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=186pt]{classS7ForceSubscriber__inherit__graph}
+\end{center}
+\end{figure}
+
+
+Collaboration diagram for S7\+Force\+Subscriber\+:\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=186pt]{classS7ForceSubscriber__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{classS7ForceSubscriber_a862f3915bd58bf99917ea4dcf705da0c}{S7\+Force\+Subscriber}} ()
+\begin{DoxyCompactList}\small\item\em Constructor for \doxylink{classS7ForceSubscriber}{S7\+Force\+Subscriber} node. \end{DoxyCompactList}\item 
+geometry\+\_\+msgs\+::msg\+::\+Wrench\+Stamped\+::\+Shared\+Ptr \mbox{\hyperlink{classS7ForceSubscriber_a014885d6402d4b13ba7a3d7ec0f85103}{get\+Current\+Wrench}} ()
+\begin{DoxyCompactList}\small\item\em Getter for current\+\_\+wrench\+\_\+. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classS7ForceSubscriber_ab64133dbf94f465e322171483a252e10}{set\+Current\+Wrench}} (geometry\+\_\+msgs\+::msg\+::\+Wrench\+Stamped\+::\+Shared\+Ptr wrench)
+\begin{DoxyCompactList}\small\item\em Setter for current\+\_\+wrench\+\_\+. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsubsection*{Private Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{classS7ForceSubscriber_ae7fa069366cb48446e3a592a768e4e65}{message\+Callback}} (const geometry\+\_\+msgs\+::msg\+::\+Wrench\+Stamped\+::\+Shared\+Ptr message)
+\begin{DoxyCompactList}\small\item\em Callback function for the subscriber, storing the message in current\+\_\+wrench\+\_\+. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsubsection*{Private Attributes}
+\begin{DoxyCompactItemize}
+\item 
+rclcpp\+::\+Subscription$<$ geometry\+\_\+msgs\+::msg\+::\+Wrench\+Stamped $>$\+::\+Shared\+Ptr \mbox{\hyperlink{classS7ForceSubscriber_a7c9c2b8ee2b30e15faeb33d47c907789}{subscriber\+\_\+}}
+\begin{DoxyCompactList}\small\item\em ROS2 subscriber for Wrench\+Stamped messages. \end{DoxyCompactList}\item 
+geometry\+\_\+msgs\+::msg\+::\+Wrench\+Stamped\+::\+Shared\+Ptr \mbox{\hyperlink{classS7ForceSubscriber_a7175a56059119e0a00a698297d3ee634}{current\+\_\+wrench\+\_\+}}
+\begin{DoxyCompactList}\small\item\em latest recieved F.\+F. message from S7\+Spaceship \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+ROS2 node that subscribes to controller\+\_\+wrench\+\_\+topic and recieves F.\+F. instructions from S7\+Spaceship. 
+
+This class manages a subscriber for the \doxylink{classS7Mothership}{S7\+Mothership}, taking care of storing the current wrench msg. 
+
+\doxysubsection{Constructor \& Destructor Documentation}
+\Hypertarget{classS7ForceSubscriber_a862f3915bd58bf99917ea4dcf705da0c}\label{classS7ForceSubscriber_a862f3915bd58bf99917ea4dcf705da0c} 
+\index{S7ForceSubscriber@{S7ForceSubscriber}!S7ForceSubscriber@{S7ForceSubscriber}}
+\index{S7ForceSubscriber@{S7ForceSubscriber}!S7ForceSubscriber@{S7ForceSubscriber}}
+\doxysubsubsection{\texorpdfstring{S7ForceSubscriber()}{S7ForceSubscriber()}}
+{\footnotesize\ttfamily S7\+Force\+Subscriber\+::\+S7\+Force\+Subscriber (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Constructor for \doxylink{classS7ForceSubscriber}{S7\+Force\+Subscriber} node. 
+
+Initializes the ROS2 node with the name "{}wrench\+\_\+subscriber"{} and creates a subscriber on the topic "{}controller\+\_\+wrench\+\_\+stamped"{} containing F.\+F. instructions for the S7 arm, which is published to by a component of S7\+Spaceship. 
+
+\doxysubsection{Member Function Documentation}
+\Hypertarget{classS7ForceSubscriber_a014885d6402d4b13ba7a3d7ec0f85103}\label{classS7ForceSubscriber_a014885d6402d4b13ba7a3d7ec0f85103} 
+\index{S7ForceSubscriber@{S7ForceSubscriber}!getCurrentWrench@{getCurrentWrench}}
+\index{getCurrentWrench@{getCurrentWrench}!S7ForceSubscriber@{S7ForceSubscriber}}
+\doxysubsubsection{\texorpdfstring{getCurrentWrench()}{getCurrentWrench()}}
+{\footnotesize\ttfamily geometry\+\_\+msgs\+::msg\+::\+Wrench\+Stamped\+::\+Shared\+Ptr S7\+Force\+Subscriber\+::get\+Current\+Wrench (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Getter for current\+\_\+wrench\+\_\+. 
+
+\begin{DoxyReturn}{Returns}
+a geometry\+\_\+msgs\+::msg\+::\+Wrench\+Stamped\+::\+Shared\+Ptr 
+\end{DoxyReturn}
+\Hypertarget{classS7ForceSubscriber_ae7fa069366cb48446e3a592a768e4e65}\label{classS7ForceSubscriber_ae7fa069366cb48446e3a592a768e4e65} 
+\index{S7ForceSubscriber@{S7ForceSubscriber}!messageCallback@{messageCallback}}
+\index{messageCallback@{messageCallback}!S7ForceSubscriber@{S7ForceSubscriber}}
+\doxysubsubsection{\texorpdfstring{messageCallback()}{messageCallback()}}
+{\footnotesize\ttfamily void S7\+Force\+Subscriber\+::message\+Callback (\begin{DoxyParamCaption}\item[{const geometry\+\_\+msgs\+::msg\+::\+Wrench\+Stamped\+::\+Shared\+Ptr}]{message }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}, {\ttfamily [private]}}
+
+
+
+Callback function for the subscriber, storing the message in current\+\_\+wrench\+\_\+. 
+
+\Hypertarget{classS7ForceSubscriber_ab64133dbf94f465e322171483a252e10}\label{classS7ForceSubscriber_ab64133dbf94f465e322171483a252e10} 
+\index{S7ForceSubscriber@{S7ForceSubscriber}!setCurrentWrench@{setCurrentWrench}}
+\index{setCurrentWrench@{setCurrentWrench}!S7ForceSubscriber@{S7ForceSubscriber}}
+\doxysubsubsection{\texorpdfstring{setCurrentWrench()}{setCurrentWrench()}}
+{\footnotesize\ttfamily void S7\+Force\+Subscriber\+::set\+Current\+Wrench (\begin{DoxyParamCaption}\item[{geometry\+\_\+msgs\+::msg\+::\+Wrench\+Stamped\+::\+Shared\+Ptr}]{wrench }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Setter for current\+\_\+wrench\+\_\+. 
+
+
+
+\doxysubsection{Member Data Documentation}
+\Hypertarget{classS7ForceSubscriber_a7175a56059119e0a00a698297d3ee634}\label{classS7ForceSubscriber_a7175a56059119e0a00a698297d3ee634} 
+\index{S7ForceSubscriber@{S7ForceSubscriber}!current\_wrench\_@{current\_wrench\_}}
+\index{current\_wrench\_@{current\_wrench\_}!S7ForceSubscriber@{S7ForceSubscriber}}
+\doxysubsubsection{\texorpdfstring{current\_wrench\_}{current\_wrench\_}}
+{\footnotesize\ttfamily geometry\+\_\+msgs\+::msg\+::\+Wrench\+Stamped\+::\+Shared\+Ptr S7\+Force\+Subscriber\+::current\+\_\+wrench\+\_\+\hspace{0.3cm}{\ttfamily [private]}}
+
+
+
+latest recieved F.\+F. message from S7\+Spaceship 
+
+\Hypertarget{classS7ForceSubscriber_a7c9c2b8ee2b30e15faeb33d47c907789}\label{classS7ForceSubscriber_a7c9c2b8ee2b30e15faeb33d47c907789} 
+\index{S7ForceSubscriber@{S7ForceSubscriber}!subscriber\_@{subscriber\_}}
+\index{subscriber\_@{subscriber\_}!S7ForceSubscriber@{S7ForceSubscriber}}
+\doxysubsubsection{\texorpdfstring{subscriber\_}{subscriber\_}}
+{\footnotesize\ttfamily rclcpp\+::\+Subscription$<$geometry\+\_\+msgs\+::msg\+::\+Wrench\+Stamped$>$\+::\+Shared\+Ptr S7\+Force\+Subscriber\+::subscriber\+\_\+\hspace{0.3cm}{\ttfamily [private]}}
+
+
+
+ROS2 subscriber for Wrench\+Stamped messages. 
+
+
+
+The documentation for this class was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+include/s7\+\_\+mothership\+\_\+v0\+\_\+1\+\_\+0/\mbox{\hyperlink{S7Mothership_8hpp}{S7\+Mothership.\+hpp}}\end{DoxyCompactItemize}

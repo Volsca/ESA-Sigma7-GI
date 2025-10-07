@@ -1,0 +1,131 @@
+\doxysection{S7\+State\+Publisher Class Reference}
+\hypertarget{classS7StatePublisher}{}\label{classS7StatePublisher}\index{S7StatePublisher@{S7StatePublisher}}
+
+
+ROS2 node that publishes the current state as a (\doxylink{classTODO}{TODO})Pose\+Stamped message.  
+
+
+
+
+{\ttfamily \#include $<$S7\+Mothership.\+hpp$>$}
+
+
+
+Inheritance diagram for S7\+State\+Publisher\+:\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=179pt]{classS7StatePublisher__inherit__graph}
+\end{center}
+\end{figure}
+
+
+Collaboration diagram for S7\+State\+Publisher\+:\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=179pt]{classS7StatePublisher__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{classS7StatePublisher_a5c571d8298835ea09341c16f8981fb1e}{S7\+State\+Publisher}} ()
+\begin{DoxyCompactList}\small\item\em Constructor for \doxylink{classS7StatePublisher}{S7\+State\+Publisher} node. \end{DoxyCompactList}\item 
+geometry\+\_\+msgs\+::msg\+::\+Pose\+Stamped\+::\+Shared\+Ptr \mbox{\hyperlink{classS7StatePublisher_a37b2b2db3d583323417e3abbf35d2dab}{get\+Current\+State}} ()
+\begin{DoxyCompactList}\small\item\em Getter for current\+\_\+state\+\_\+. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classS7StatePublisher_a65868bd6ca5616664c1a50a3650bb612}{set\+Current\+State}} (geometry\+\_\+msgs\+::msg\+::\+Pose\+Stamped\+::\+Shared\+Ptr state)
+\begin{DoxyCompactList}\small\item\em Setter for current\+\_\+state\+\_\+. \end{DoxyCompactList}\item 
+int8\+\_\+t \mbox{\hyperlink{classS7StatePublisher_a8cc60f5c9a91d8ceb72e17e9554aed3d}{publish}} ()
+\begin{DoxyCompactList}\small\item\em Publish the current state. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsubsection*{Private Attributes}
+\begin{DoxyCompactItemize}
+\item 
+rclcpp\+::\+Publisher$<$ geometry\+\_\+msgs\+::msg\+::\+Pose\+Stamped $>$\+::\+Shared\+Ptr \mbox{\hyperlink{classS7StatePublisher_ac8c97b8e5455a50e360fec5c2119134d}{publisher\+\_\+}}
+\begin{DoxyCompactList}\small\item\em ROS2 publisher for (\doxylink{classTODO}{TODO})Pose\+Stamped messages. \end{DoxyCompactList}\item 
+geometry\+\_\+msgs\+::msg\+::\+Pose\+Stamped\+::\+Shared\+Ptr \mbox{\hyperlink{classS7StatePublisher_a13fcdf3e01c39e1e033c7af4663af622}{current\+\_\+state\+\_\+}}
+\begin{DoxyCompactList}\small\item\em Current state stored as a shared pointer to (\doxylink{classTODO}{TODO})Pose\+Stamped. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+ROS2 node that publishes the current state as a (\doxylink{classTODO}{TODO})Pose\+Stamped message. 
+
+This class manages a publisher for the \doxylink{classS7Mothership}{S7\+Mothership}, taking care of publishing the state msgs. 
+
+\doxysubsection{Constructor \& Destructor Documentation}
+\Hypertarget{classS7StatePublisher_a5c571d8298835ea09341c16f8981fb1e}\label{classS7StatePublisher_a5c571d8298835ea09341c16f8981fb1e} 
+\index{S7StatePublisher@{S7StatePublisher}!S7StatePublisher@{S7StatePublisher}}
+\index{S7StatePublisher@{S7StatePublisher}!S7StatePublisher@{S7StatePublisher}}
+\doxysubsubsection{\texorpdfstring{S7StatePublisher()}{S7StatePublisher()}}
+{\footnotesize\ttfamily S7\+State\+Publisher\+::\+S7\+State\+Publisher (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Constructor for \doxylink{classS7StatePublisher}{S7\+State\+Publisher} node. 
+
+Initializes the ROS2 node with the name "{}state\+\_\+publisher"{} and creates a publisher on the topic "{}controller\+\_\+pose\+\_\+stamped"{} , which is subscribed to by a component of S7\+Spaceship. 
+
+\doxysubsection{Member Function Documentation}
+\Hypertarget{classS7StatePublisher_a37b2b2db3d583323417e3abbf35d2dab}\label{classS7StatePublisher_a37b2b2db3d583323417e3abbf35d2dab} 
+\index{S7StatePublisher@{S7StatePublisher}!getCurrentState@{getCurrentState}}
+\index{getCurrentState@{getCurrentState}!S7StatePublisher@{S7StatePublisher}}
+\doxysubsubsection{\texorpdfstring{getCurrentState()}{getCurrentState()}}
+{\footnotesize\ttfamily geometry\+\_\+msgs\+::msg\+::\+Pose\+Stamped\+::\+Shared\+Ptr S7\+State\+Publisher\+::get\+Current\+State (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Getter for current\+\_\+state\+\_\+. 
+
+\Hypertarget{classS7StatePublisher_a8cc60f5c9a91d8ceb72e17e9554aed3d}\label{classS7StatePublisher_a8cc60f5c9a91d8ceb72e17e9554aed3d} 
+\index{S7StatePublisher@{S7StatePublisher}!publish@{publish}}
+\index{publish@{publish}!S7StatePublisher@{S7StatePublisher}}
+\doxysubsubsection{\texorpdfstring{publish()}{publish()}}
+{\footnotesize\ttfamily int8\+\_\+t S7\+State\+Publisher\+::publish (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Publish the current state. 
+
+Publishes the current state (current\+\_\+state\+\_\+) to controller\+\_\+pose\+\_\+stamped if not null
+
+\begin{DoxyReturn}{Returns}
+1 if published without fail, 0 if current\+\_\+state\+\_\+ is null. 
+\end{DoxyReturn}
+\Hypertarget{classS7StatePublisher_a65868bd6ca5616664c1a50a3650bb612}\label{classS7StatePublisher_a65868bd6ca5616664c1a50a3650bb612} 
+\index{S7StatePublisher@{S7StatePublisher}!setCurrentState@{setCurrentState}}
+\index{setCurrentState@{setCurrentState}!S7StatePublisher@{S7StatePublisher}}
+\doxysubsubsection{\texorpdfstring{setCurrentState()}{setCurrentState()}}
+{\footnotesize\ttfamily void S7\+State\+Publisher\+::set\+Current\+State (\begin{DoxyParamCaption}\item[{geometry\+\_\+msgs\+::msg\+::\+Pose\+Stamped\+::\+Shared\+Ptr}]{state }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Setter for current\+\_\+state\+\_\+. 
+
+
+
+\doxysubsection{Member Data Documentation}
+\Hypertarget{classS7StatePublisher_a13fcdf3e01c39e1e033c7af4663af622}\label{classS7StatePublisher_a13fcdf3e01c39e1e033c7af4663af622} 
+\index{S7StatePublisher@{S7StatePublisher}!current\_state\_@{current\_state\_}}
+\index{current\_state\_@{current\_state\_}!S7StatePublisher@{S7StatePublisher}}
+\doxysubsubsection{\texorpdfstring{current\_state\_}{current\_state\_}}
+{\footnotesize\ttfamily geometry\+\_\+msgs\+::msg\+::\+Pose\+Stamped\+::\+Shared\+Ptr S7\+State\+Publisher\+::current\+\_\+state\+\_\+\hspace{0.3cm}{\ttfamily [private]}}
+
+
+
+Current state stored as a shared pointer to (\doxylink{classTODO}{TODO})Pose\+Stamped. 
+
+\Hypertarget{classS7StatePublisher_ac8c97b8e5455a50e360fec5c2119134d}\label{classS7StatePublisher_ac8c97b8e5455a50e360fec5c2119134d} 
+\index{S7StatePublisher@{S7StatePublisher}!publisher\_@{publisher\_}}
+\index{publisher\_@{publisher\_}!S7StatePublisher@{S7StatePublisher}}
+\doxysubsubsection{\texorpdfstring{publisher\_}{publisher\_}}
+{\footnotesize\ttfamily rclcpp\+::\+Publisher$<$geometry\+\_\+msgs\+::msg\+::\+Pose\+Stamped$>$\+::\+Shared\+Ptr S7\+State\+Publisher\+::publisher\+\_\+\hspace{0.3cm}{\ttfamily [private]}}
+
+
+
+ROS2 publisher for (\doxylink{classTODO}{TODO})Pose\+Stamped messages. 
+
+
+
+The documentation for this class was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+include/s7\+\_\+mothership\+\_\+v0\+\_\+1\+\_\+0/\mbox{\hyperlink{S7Mothership_8hpp}{S7\+Mothership.\+hpp}}\end{DoxyCompactItemize}

@@ -1,0 +1,73 @@
+\doxysection{include/s7\+\_\+mothership\+\_\+v0\+\_\+1\+\_\+0/\+S7\+Mothership.hpp File Reference}
+\hypertarget{S7Mothership_8hpp}{}\label{S7Mothership_8hpp}\index{include/s7\_mothership\_v0\_1\_0/S7Mothership.hpp@{include/s7\_mothership\_v0\_1\_0/S7Mothership.hpp}}
+{\ttfamily \#include $<$chrono$>$}\newline
+{\ttfamily \#include $<$memory$>$}\newline
+{\ttfamily \#include $<$thread$>$}\newline
+{\ttfamily \#include "{}drdc.\+h"{}}\newline
+{\ttfamily \#include "{}rclcpp/rclcpp.\+hpp"{}}\newline
+{\ttfamily \#include "{}geometry\+\_\+msgs/msg/pose\+\_\+stamped.\+hpp"{}}\newline
+{\ttfamily \#include "{}geometry\+\_\+msgs/msg/wrench\+\_\+stamped.\+hpp"{}}\newline
+Include dependency graph for S7\+Mothership.\+hpp\+:\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=350pt]{S7Mothership_8hpp__incl}
+\end{center}
+\end{figure}
+This graph shows which files directly or indirectly include this file\+:\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=227pt]{S7Mothership_8hpp__dep__incl}
+\end{center}
+\end{figure}
+\doxysubsubsection*{Classes}
+\begin{DoxyCompactItemize}
+\item 
+class \mbox{\hyperlink{classS7StatePublisher}{S7\+State\+Publisher}}
+\begin{DoxyCompactList}\small\item\em ROS2 node that publishes the current state as a (\doxylink{classTODO}{TODO})Pose\+Stamped message. \end{DoxyCompactList}\item 
+class \mbox{\hyperlink{classS7ForceSubscriber}{S7\+Force\+Subscriber}}
+\begin{DoxyCompactList}\small\item\em ROS2 node that subscribes to controller\+\_\+wrench\+\_\+topic and recieves F.\+F. instructions from S7\+Spaceship. \end{DoxyCompactList}\item 
+class \mbox{\hyperlink{classS7InterfaceControlPublisher}{S7\+Interface\+Control\+Publisher}}
+\item 
+class \mbox{\hyperlink{classS7InterfaceControlsubscriber}{S7\+Interface\+Controlsubscriber}}
+\item 
+class \mbox{\hyperlink{classS7Controller}{S7\+Controller}}
+\begin{DoxyCompactList}\small\item\em Object in charge of managing the control and data aquisition loop of the Sigma7. Links using same-\/name functions in \doxylink{classS7Mothership}{S7\+Mothership}. \end{DoxyCompactList}\item 
+class \mbox{\hyperlink{classS7Mothership}{S7\+Mothership}}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Enumerations}
+\begin{DoxyCompactItemize}
+\item 
+enum \mbox{\hyperlink{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268}{S7\+Mode}} \{ \mbox{\hyperlink{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268abe82b18b704441fcf2c92bd7c84a4eb3}{BRAKING}}
+, \mbox{\hyperlink{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268acc62d1576546f3245237e1b232d838b6}{FREE}}
+, \mbox{\hyperlink{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268ab2e2006ed086024f6e3c3c3e99ff198d}{SELF\+\_\+\+CENTERING}}
+ \}
+\begin{DoxyCompactList}\small\item\em State Machine definitions for different modes used by the \doxylink{classS7Mothership}{S7\+Mothership} \& the \doxylink{classS7Controller}{S7\+Controller}. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Enumeration Type Documentation}
+\Hypertarget{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268}\label{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268} 
+\index{S7Mothership.hpp@{S7Mothership.hpp}!S7Mode@{S7Mode}}
+\index{S7Mode@{S7Mode}!S7Mothership.hpp@{S7Mothership.hpp}}
+\doxysubsubsection{\texorpdfstring{S7Mode}{S7Mode}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268}{S7\+Mode}}}
+
+
+
+State Machine definitions for different modes used by the \doxylink{classS7Mothership}{S7\+Mothership} \& the \doxylink{classS7Controller}{S7\+Controller}. 
+
+\begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{BRAKING@{BRAKING}!S7Mothership.hpp@{S7Mothership.hpp}}\index{S7Mothership.hpp@{S7Mothership.hpp}!BRAKING@{BRAKING}}}\Hypertarget{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268abe82b18b704441fcf2c92bd7c84a4eb3}\label{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268abe82b18b704441fcf2c92bd7c84a4eb3} 
+BRAKING&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{FREE@{FREE}!S7Mothership.hpp@{S7Mothership.hpp}}\index{S7Mothership.hpp@{S7Mothership.hpp}!FREE@{FREE}}}\Hypertarget{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268acc62d1576546f3245237e1b232d838b6}\label{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268acc62d1576546f3245237e1b232d838b6} 
+FREE&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{SELF\_CENTERING@{SELF\_CENTERING}!S7Mothership.hpp@{S7Mothership.hpp}}\index{S7Mothership.hpp@{S7Mothership.hpp}!SELF\_CENTERING@{SELF\_CENTERING}}}\Hypertarget{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268ab2e2006ed086024f6e3c3c3e99ff198d}\label{S7Mothership_8hpp_a743191de3e8394b54fb8ba0c1dffa268ab2e2006ed086024f6e3c3c3e99ff198d} 
+SELF\+\_\+\+CENTERING&\\
+\hline
+
+\end{DoxyEnumFields}

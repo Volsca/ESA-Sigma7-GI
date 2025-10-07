@@ -1,0 +1,19 @@
+<map id="S7Mothership" name="S7Mothership">
+<area shape="rect" id="Node000001" title=" " alt="" coords="543,107,653,132"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,83,108,108"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="78,70,113,41,156,18,214,5,261,4,308,11,368,18,446,18,480,23,520,38,542,53,562,70,590,104,586,108,558,74,539,57,517,43,478,28,446,24,368,23,308,16,261,10,215,10,158,23,116,46,81,74"/>
+<area shape="rect" id="Node000003" href="$classS7StatePublisher.html" title="ROS2 node that publishes the current state as a (TODO)PoseStamped message." alt="" coords="197,33,329,59"/>
+<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="119,77,157,67,205,56,206,61,158,73,121,82"/>
+<area shape="rect" id="Node000004" href="$classS7ForceSubscriber.html" title="ROS2 node that subscribes to controller_wrench_topic and recieves F.F. instructions from S7Spaceship." alt="" coords="192,83,333,108"/>
+<area shape="poly" id="edge5_Node000004_Node000002" title=" " alt="" coords="122,93,192,93,192,98,122,98"/>
+<area shape="rect" id="Node000006" href="$classS7InterfaceControlPublisher.html" title=" " alt="" coords="161,132,364,157"/>
+<area shape="poly" id="edge8_Node000006_Node000002" title=" " alt="" coords="122,108,209,129,208,134,121,113"/>
+<area shape="rect" id="Node000007" href="$classS7InterfaceControlsubscriber.html" title=" " alt="" coords="157,181,368,207"/>
+<area shape="poly" id="edge10_Node000007_Node000002" title=" " alt="" coords="83,115,118,142,158,166,193,179,191,184,156,171,115,146,80,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="343,51,429,63,519,83,572,104,570,109,518,88,428,68,342,56"/>
+<area shape="poly" id="edge4_Node000001_Node000004" title=" " alt="" coords="347,99,543,113,542,118,347,104"/>
+<area shape="rect" id="Node000005" href="$classS7Controller.html" title="Object in charge of managing the control and data aquisition loop of the Sigma7. Links using same&#45;nam..." alt="" coords="211,231,314,256"/>
+<area shape="poly" id="edge6_Node000001_Node000005" title=" " alt="" coords="328,244,372,243,421,237,471,225,517,206,540,190,560,170,587,131,592,134,564,173,544,194,520,211,472,231,422,242,372,248,328,249"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="377,141,518,131,542,128,543,133,519,137,378,146"/>
+<area shape="poly" id="edge9_Node000001_Node000007" title=" " alt="" coords="381,187,450,178,518,161,550,147,577,130,580,135,552,151,520,166,451,183,382,192"/>
+</map>
