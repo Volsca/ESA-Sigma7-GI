@@ -48,5 +48,55 @@ qtcreator-*
 # Emacs
 .#*
 
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+*.log
+*.sqlite3
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+*.env
+
+# Jupyter notebooks
+.ipynb_checkpoints
+
+# === ROS (colcon/catkin) ===
+build/
+devel/
+install/
+log/
+.colcon_workspace
+ament_cmake_core/
+ament_cmake_environment_hooks/
+
+# ROS 1/2 generated messages/services
+msg_gen/
+srv_gen/
+*.msg~
+*.srv~
+*.action~
+
+# === IDE/editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === System ===
+.DS_Store
+Thumbs.db
+
+# === Custom config ===
+/*.local
+*.launch.user
+
 # Catkin custom files
 CATKIN_IGNORE
