@@ -116,7 +116,7 @@ public:
     S7StatePublisher(const rclcpp::Node::SharedPtr &node, LockedPoseMessage *msg)
     {
         this->node_ = node;
-        publisher_ = node_->create_publisher<geometry_msgs::msg::PoseStamped>("controller_pose_stamped", 1);
+        publisher_ = node_->create_publisher<geometry_msgs::msg::PoseStamped>("controller_pose_topic", 1);
         CurrentPose_ = msg;
     }
 
