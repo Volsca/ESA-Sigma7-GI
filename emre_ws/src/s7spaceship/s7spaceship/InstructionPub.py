@@ -8,7 +8,7 @@ class InstructionPub(Node):
         # Initialize the ros2 node with the name "instruction_pub"
         super().__init__("instruction_pub")
 
-        # Create a publisher to  to the "control_instruction_topic" topic
+        # Create a publisher to the "control_instruction_topic" topic
         # 'String' is the message type containing the instruction data in str type
         # 'control_instruction_topic' is the topic name
         self.publisher_ = self.create_publisher(
