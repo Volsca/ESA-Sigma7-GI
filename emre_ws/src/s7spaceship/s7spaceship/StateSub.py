@@ -19,6 +19,8 @@ class StateSub(Node):
         self.subscription_twist = self.create_subscription(
             TwistStamped, "controller_twist_topic", self.twist_callback, 10
         )
+        self.latest_pose = None
+        self.latest_twist = None
 
     def twist_callback(self, msg):
         self.latest_twist = msg

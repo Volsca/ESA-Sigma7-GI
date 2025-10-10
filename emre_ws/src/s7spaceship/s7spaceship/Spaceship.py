@@ -1,6 +1,11 @@
 # TODO Communicate with RViz using publisher and subscriber
 # TODO Better initilisation of spaceship comments
 
+import sys
+import threading
+import tty
+import termios
+import time
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
@@ -38,10 +43,7 @@ class Spaceship(Node):
 
         self.get_logger().info("Spaceship bridge online...\n")
 
-    def centering(self):
         # Latest received messages
-        self.latest_pose = self.state_node.latest_pose
-        self.latest_twist = self.state_node.latest_twist
 
         # Control gains
         self.kp = 180
@@ -54,9 +56,37 @@ class Spaceship(Node):
         self.kdb = 0.14
         self.kpg = 0.3
         self.kdg = 0.06
+        self.centering_enabled = False
+        self.shutdown = False
+        self._center_timer = self.create_timer(0.002, self._maybe_center)
+        self.get_logger().info("Press SPACE to toggle centering.")
 
+    # ---------- UI -> Controller ----------
+    def sendinstr(self, msg: String):
+        # Forward via your InstructionPub's publisher_
+        try:
+            self.instr_node.sendInstruction(msg)
+            self.get_logger().info(f"Forwarded UI instruction: {msg.data}")
+        except Exception as e:
+            self.get_logger().error(f"Failed to forward instruction: {e}")
+
+    def sendforce(self, fx, fy, fz, tx, ty, tz):
+        # Forward via your ForcePub's publisher_
+        try:
+            self.force_node.set_forces(fx, fy, fz, tx, ty, tz)
+            self.get_logger().info(
+                "Forwarded UI force wrench "
+                f"(fx={fx}, fy={fy}, fz={fz}, tx={tx}, ty={ty}, tz={tz})"
+            )
+        except Exception as e:
+            self.get_logger().error(f"Failed to forward force: {e}")
+
+    def centering(self):
+        self.latest_pose = self.state_node.latest_pose
+        self.latest_twist = self.state_node.latest_twist
         if self.latest_pose is None or self.latest_twist is None:
-            return (0.0,) * 6  # Return zeros if either is missing
+            self.sendforce(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            return  # Return zeros if either is missing
 
         # Positions from pose
         px = self.latest_pose.pose.position.x
@@ -81,29 +111,9 @@ class Spaceship(Node):
         ta = self.kpa * (0.0 - da) + self.kda * (0.0 - va)
         tb = self.kpb * (0.0 - db) + self.kdb * (0.0 - vb)
         tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg)
+
         force = dx, dy, dz, ta, tb, tg
-
-        self.sendforce(force)
-
-    # ---------- UI -> Controller ----------
-    def sendinstr(self, msg: String):
-        # Forward via your InstructionPub's publisher_
-        try:
-            self.instr_node.sendInstruction(msg)
-            self.get_logger().debug(f"Forwarded UI instruction: {msg.data}")
-        except Exception as e:
-            self.get_logger().error(f"Failed to forward instruction: {e}")
-
-    def sendforce(self, fx, fy, fz, tx, ty, tz):
-        # Forward via your ForcePub's publisher_
-        try:
-            self.force_node.set_forces(fx, fy, fz, tx, ty, tz)
-            self.get_logger().debug(
-                "Forwarded UI force wrench "
-                f"(fx={fx}, fy={fy}, fz={fz}, tx={tx}, ty={ty}, tz={tz})"
-            )
-        except Exception as e:
-            self.get_logger().error(f"Failed to forward force: {e}")
+        self.sendforce(*force)  # unpack to six positional args
 
     # ---------- Controller -> UI ----------
     def _ctrl_pose_cb(self, msg: PoseStamped):
@@ -114,10 +124,43 @@ class Spaceship(Node):
         msg.data = self.intmsg_node.latest_msg
         self.get_logger().debug(f"Received controller message: {msg.data}")
 
+    def _maybe_center(self):
+        if self.centering_enabled:
+            self.centering()
+
+
+def KeyInput(spaceship):
+    """
+    Runs in a background thread.
+    Press SPACE to toggle centering (no Enter needed).
+    Press Ctrl+C in the main terminal to quit the node as usual.
+    """
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        while not spaceship.shutdown:
+            ch = sys.stdin.read(1)
+            if ch == " ":
+                spaceship.centering_enabled = not spaceship.centering_enabled
+                spaceship.get_logger().info(
+                    f"Centering {'ENABLED' if spaceship.centering_enabled else 'DISABLED'} (space)."
+                )
+    except Exception as e:
+        try:
+            spaceship.get_logger().error(f"KeyInput error: {e}")
+        except Exception:
+            pass
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
 
 def main():
     rclpy.init()
     spaceship = Spaceship()
+
+    # Start keyboard watcher thread (SPACE toggles centering)
+    threading.Thread(target=KeyInput, args=(spaceship,), daemon=True).start()
 
     executor = MultiThreadedExecutor()
     executor.add_node(spaceship)
@@ -131,6 +174,8 @@ def main():
     except KeyboardInterrupt:
         print("Shutting down spaceship bridge...")
     finally:
+        spaceship.shutdown = True
+        time.sleep(0.1)
         # Make sure the executor stops pulling callbacks
         executor.shutdown()
 
@@ -166,12 +211,6 @@ def main():
         except Exception:
             # Context may already be shutting down due to SIGINT
             pass
-
-
-def sanity_test(spaceship):
-    # quick sanity test
-    spaceship.sendinstr(String(data="TEST_INSTRUCTION"))
-    spaceship.sendforce(1.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 if __name__ == "__main__":

@@ -8,9 +8,9 @@ class ForcePub(Node):
         # Initialize the ros2 node with the name "force_pub"
         super().__init__("force_pub")
 
-        # Create a publisher to  to the "controller_force_topic" topic
+        # Create a publisher to the "controller_wrenchtopic" topic
         # 'WrenchStamped' is the message type containing force data with a time stamp
-        # 'controller_force_topic' is the topic name
+        # 'controller_wrench_topic' is the topic name
         self.publisher_ = self.create_publisher(
             WrenchStamped, "controller_wrench_topic", 1
         )
