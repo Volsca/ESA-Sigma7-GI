@@ -12,7 +12,7 @@ class ForcePub(Node):
         # 'WrenchStamped' is the message type containing force data with a time stamp
         # 'controller_force_topic' is the topic name
         self.publisher_ = self.create_publisher(
-            WrenchStamped, "controller_force_topic", 1
+            WrenchStamped, "controller_wrench_topic", 1
         )
 
         # Timer for publishing wrench messages at 500Hz

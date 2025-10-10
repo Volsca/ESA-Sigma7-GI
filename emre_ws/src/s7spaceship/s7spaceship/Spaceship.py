@@ -1,4 +1,6 @@
-# Spaceship.py
+# TODO Communicate with RViz using publisher and subscriber
+# TODO Better initilisation of spaceship comments
+
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
@@ -34,13 +36,54 @@ class Spaceship(Node):
         self.state_node = StateSub()
         self.intmsg_node = IntMsgSub()
 
-        self.get_logger().info(
-            "Spaceship bridge online.\n"
-            " UI in  -> /ui/instruction (String) → control_instruction_topic\n"
-            " UI in  -> /ui/force (WrenchStamped) → controller_force_topic\n"
-            " UI out <- /ui/state (PoseStamped) ← controller_pose_topic\n"
-            " UI out <- /ui/message (String) ← controller_msg_topic"
-        )
+        self.get_logger().info("Spaceship bridge online...\n")
+
+    def centering(self):
+        # Latest received messages
+        self.latest_pose = self.state_node.latest_pose
+        self.latest_twist = self.state_node.latest_twist
+
+        # Control gains
+        self.kp = 180
+        self.kd = 25
+
+        # Derivative and Proportional coefficients for angular axis alpha beta and gamma
+        self.kpa = 1.2
+        self.kda = 0.1
+        self.kpb = 0.55
+        self.kdb = 0.14
+        self.kpg = 0.3
+        self.kdg = 0.06
+
+        if self.latest_pose is None or self.latest_twist is None:
+            return (0.0,) * 6  # Return zeros if either is missing
+
+        # Positions from pose
+        px = self.latest_pose.pose.position.x
+        py = self.latest_pose.pose.position.y
+        pz = self.latest_pose.pose.position.z
+
+        # Linear velocities from twist
+        vx = self.latest_twist.twist.linear.x
+        vy = self.latest_twist.twist.linear.y
+        vz = self.latest_twist.twist.linear.z
+
+        # For simplicity, we assume no rotation tracking in this version
+        da = db = dg = 0.0  # Orientation error placeholder
+        va = vb = vg = 0.0  # Angular velocity
+
+        # PD control law
+        # The 0.0s represent the center position, this can be altered to change the centering position
+        dx = self.kp * (0.0 - px) + self.kd * (0.0 - vx)
+        dy = self.kp * (0.0 - py) + self.kd * (0.0 - vy)
+        dz = self.kp * (0.0 - pz) + self.kd * (0.0 - vz)
+
+        ta = self.kpa * (0.0 - da) + self.kda * (0.0 - va)
+        tb = self.kpb * (0.0 - db) + self.kdb * (0.0 - vb)
+        tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg)
+        force = dx, dy, dz, ta, tb, tg
+
+        self.sendforce(force)
 
     # ---------- UI -> Controller ----------
     def sendinstr(self, msg: String):
