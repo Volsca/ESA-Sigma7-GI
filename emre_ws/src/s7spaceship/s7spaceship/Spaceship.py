@@ -117,6 +117,7 @@ class Spaceship(Node):
         tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg)
 
         force = dx, dy, dz, ta, tb, tg
+        self.get_logger().info(f"Calculated force: {force}")
         self.sendforce(*force)  # unpack to six positional args
 
     # ---------- Controller -> UI ----------
