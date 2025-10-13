@@ -93,14 +93,18 @@ class Spaceship(Node):
         py = self.latest_pose.pose.position.y
         pz = self.latest_pose.pose.position.z
 
+        da = self.latest_pose.pose.orientation.x
+        db = self.latest_pose.pose.orientation.y
+        dg = self.latest_pose.pose.orientation.z
+
         # Linear velocities from twist
         vx = self.latest_twist.twist.linear.x
         vy = self.latest_twist.twist.linear.y
         vz = self.latest_twist.twist.linear.z
 
-        # For simplicity, we assume no rotation tracking in this version
-        da = db = dg = 0.0  # Orientation error placeholder
-        va = vb = vg = 0.0  # Angular velocity
+        va = self.latest_twist.twist.angular.x
+        vb = self.latest_twist.twist.angular.y
+        vg = self.latest_twist.twist.angular.z
 
         # PD control law
         # The 0.0s represent the center position, this can be altered to change the centering position
