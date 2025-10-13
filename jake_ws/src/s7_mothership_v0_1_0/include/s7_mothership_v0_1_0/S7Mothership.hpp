@@ -281,7 +281,7 @@ public:
      * @brief Constructor for S7ForceSubscriber node.
      *
      * Initializes the ROS2 node with the name "wrench_subscriber"
-     * and creates a subscriber on the topic "controller_wrench_stamped"
+     * and creates a subscriber on the topic "controller_wrench_topic"
      * containing F.F. instructions for the S7 arm, which is published
      * to by a component of S7Spaceship.
      */
@@ -290,7 +290,7 @@ public:
         this->node_ = node;
         CurrentWrench_ = msg;
         subscriber_ = node_->create_subscription<geometry_msgs::msg::WrenchStamped>(
-            "controller_wrench_stamped", 1,
+            "controller_wrench_topic", 1,
             std::bind(&S7ForceSubscriber::messageCallback, this, std::placeholders::_1));
     }
 
