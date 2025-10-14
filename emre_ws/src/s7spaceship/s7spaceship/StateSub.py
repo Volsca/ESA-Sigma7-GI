@@ -24,11 +24,16 @@ class StateSub(Node):
 
     def twist_callback(self, msg):
         self.latest_twist = msg
-        # self.get_logger().info(f'Received Twist @ {msg.header.stamp.sec}.{msg.header.stamp.nanosec}')
+        self.get_logger().debug(
+            f"Received Twist @ {msg.header.stamp.sec}.{msg.header.stamp.nanosec}"
+        )
 
     def pose_callback(self, msg):
         # This function is called whenever a new message is received on the "controller_pose_topic"
         self.latest_pose = msg.pose
+        self.get_logger().debug(
+            f"Received Pose @ {msg.header.stamp.sec}.{msg.header.stamp.nanosec}"
+        )
 
 
 def main(args=None):

@@ -8,22 +8,11 @@ import termios
 import time
 import rclpy
 from rclpy.node import Node
-from rclpy.executors import MultiThreadedExecutor
 
 from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
-
-try:
-    from .ForcePub import ForcePub
-    from .InstructionPub import InstructionPub
-    from .StateSub import StateSub
-    from .IntMsgSub import IntMsgSub
-except ImportError:
-    # fallback when running locally as a plain script
-    from ForcePub import ForcePub
-    from InstructionPub import InstructionPub
-    from StateSub import StateSub
-    from IntMsgSub import IntMsgSub
+from geometry_msgs.msg import WrenchStamped
+from geometry_msgs.msg import TwistStamped
 
 
 class Spaceship(Node):
@@ -36,10 +25,10 @@ class Spaceship(Node):
         super().__init__("spaceship")
 
         # --- Create your nodes (publishers/subscribers) ---
-        self.force_node = ForcePub()
-        self.instr_node = InstructionPub()
-        self.state_node = StateSub()
-        self.intmsg_node = IntMsgSub()
+        self.force_node = ForcePub(self)
+        self.instr_node = InstructionPub(self)
+        self.state_node = StateSub(self)
+        self.intmsg_node = IntMsgSub(self)
 
         self.get_logger().info("Spaceship bridge online...\n")
 
@@ -71,36 +60,32 @@ class Spaceship(Node):
             self.get_logger().error(f"Failed to forward instruction: {e}")
 
     def sendforce(self, fx, fy, fz, tx, ty, tz):
-        # Forward via your ForcePub's publisher_
-        try:
-            self.force_node.set_forces(fx, fy, fz, tx, ty, tz)
-            self.get_logger().info(
-                "Forwarded UI force wrench "
-                f"(fx={fx}, fy={fy}, fz={fz}, tx={tx}, ty={ty}, tz={tz})"
-            )
-        except Exception as e:
-            self.get_logger().error(f"Failed to forward force: {e}")
+        self.force_node.set_forces(fx, fy, fz, tx, ty, tz)
 
     def centering(self):
         self.latest_pose = self.state_node.latest_pose
         self.latest_twist = self.state_node.latest_twist
         if self.latest_pose is None or self.latest_twist is None:
-            self.sendforce(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-            return  # Return zeros if either is missing
+            self.get_logger().info("Not receiving anything, cant center")
+            return
 
         # Positions from pose
         px = self.latest_pose.pose.position.x
         py = self.latest_pose.pose.position.y
         pz = self.latest_pose.pose.position.z
 
+        da = self.latest_pose.pose.orientation.x
+        db = self.latest_pose.pose.orientation.y
+        dg = self.latest_pose.pose.orientation.z
+
         # Linear velocities from twist
         vx = self.latest_twist.twist.linear.x
         vy = self.latest_twist.twist.linear.y
         vz = self.latest_twist.twist.linear.z
 
-        # For simplicity, we assume no rotation tracking in this version
-        da = db = dg = 0.0  # Orientation error placeholder
-        va = vb = vg = 0.0  # Angular velocity
+        va = self.latest_twist.twist.angular.x
+        vb = self.latest_twist.twist.angular.y
+        vg = self.latest_twist.twist.angular.z
 
         # PD control law
         # The 0.0s represent the center position, this can be altered to change the centering position
@@ -113,6 +98,7 @@ class Spaceship(Node):
         tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg)
 
         force = dx, dy, dz, ta, tb, tg
+        self.get_logger().info(f"Calculated force: {force}")
         self.sendforce(*force)  # unpack to six positional args
 
     # ---------- Controller -> UI ----------
@@ -129,15 +115,139 @@ class Spaceship(Node):
             self.centering()
 
 
+class ForcePub:
+    def __init__(self, node: Node):
+        self.node = node
+        self.publisher_ = node.create_publisher(
+            WrenchStamped, "controller_wrench_topic", 10
+        )
+        # cached wrench (optional)
+        self.force_x = self.force_y = self.force_z = 0.0
+        self.torque_x = self.torque_y = self.torque_z = 0.0
+        # optional high-rate publisher owned by the SAME node
+        self._timer = node.create_timer(0.002, self._timer_cb)  # 500 Hz
+
+    def set_forces(self, fx=0.0, fy=0.0, fz=0.0, tx=0.0, ty=0.0, tz=0.0):
+        self.force_x, self.force_y, self.force_z = fx, fy, fz
+        self.torque_x, self.torque_y, self.torque_z = tx, ty, tz
+
+    def _timer_cb(self):
+        # Forward via your ForcePub's publisher_
+        msg = WrenchStamped()
+
+        now = self.node.get_clock().now().to_msg()
+        msg.header.stamp = now
+
+        msg.wrench.force.x = self.force_x
+        msg.wrench.force.y = self.force_y
+        msg.wrench.force.z = self.force_z
+
+        msg.wrench.torque.x = self.torque_x
+        msg.wrench.torque.y = self.torque_y
+        msg.wrench.torque.z = self.torque_z
+        if not self.node.shutdown:
+            try:
+                self.publisher_.publish(msg)
+            except Exception as e:
+                self.node.get_logger().error(f"Failed to forward force: {e}")
+            # light logging only when meaningfully non-zero
+            if (
+                abs(self.force_x)
+                + abs(self.force_y)
+                + abs(self.force_z)
+                + abs(self.torque_x)
+                + abs(self.torque_y)
+                + abs(self.torque_z)
+            ) > 1e-6:
+                self.node.get_logger().info(
+                    f"Published force wrench (fx={msg.wrench.force.x}, fy={msg.wrench.force.y}, fz={msg.wrench.force.z}, "
+                    f"tx={msg.wrench.torque.x}, ty={msg.wrench.torque.y}, tz={msg.wrench.torque.z})"
+                )
+
+
+class StateSub:
+    def __init__(self, node: Node):
+        self.node = node
+        # Create a subscriber to the "controller_pose_topic" topic
+        # 'PoseStamped' is the message type containing position data with a time stamp
+        # 'controller_pose_topic' is the topic name
+        # 'self.pose_callback' is the function to call when a new message is received
+        self.subscription_pose = self.node.create_subscription(
+            PoseStamped, "controller_pose_topic", self.pose_callback, 10
+        )
+        self.subscription_twist = self.node.create_subscription(
+            TwistStamped, "controller_twist_topic", self.twist_callback, 10
+        )
+        self.latest_pose = None
+        self.latest_twist = None
+
+    def twist_callback(self, msg):
+        self.latest_twist = msg
+        self.node.get_logger().debug(
+            f"Received Twist @ {msg.header.stamp.sec}.{msg.header.stamp.nanosec}"
+        )
+
+    def pose_callback(self, msg):
+        # This function is called whenever a new message is received on the "controller_pose_topic"
+        self.latest_pose = msg.pose
+        self.node.get_logger().debug(
+            f"Received Pose @ {msg.header.stamp.sec}.{msg.header.stamp.nanosec}"
+        )
+
+
+class InstructionPub:
+    def __init__(self, node: Node = None):
+        # Initialize the ros2 node with the name "instruction_pub"
+        self.node = node
+
+        # Create a publisher to  to the "control_instruction_topic" topic
+        # 'String' is the message type containing the instruction data in str type
+        # 'control_instruction_topic' is the topic name
+        self.publisher_ = self.node.create_publisher(
+            String, "control_instruction_topic", 1
+        )
+
+    def sendInstruction(self, msg: String):
+        try:
+            self.publisher_.publish(msg)
+            self.node.get_logger().info(f"Published instruction: {msg.data}")
+        except Exception as e:
+            self.node.get_logger().error(f"Failed to publish instruction: {e}")
+            return
+
+
+class IntMsgSub:
+    def __init__(self, node: Node):
+        # Initialize the ros2 node with the name "interface_msg_sub"
+        self.node = node
+
+        # Create a subscriber to the "controller_msg_topic" topic
+        # 'String' is the message type containing the message in str type
+        # 'controller_msg_topic' is the topic name
+        # 'self.msg_callback' is the function to call when a new message is received
+        self.subscription_pose = self.node.create_subscription(
+            String, "controller_msg_topic", self.msg_callback, 10
+        )
+
+        self.latest_msg = None
+
+    def msg_callback(self, msg):
+        # This function is called whenever a new message is received on the "controller_msg_topic"
+        self.node.get_logger().info(f"Received message: {msg.data}")
+        self.latest_msg = msg.data
+
+
 def KeyInput(spaceship):
     """
     Runs in a background thread.
     Press SPACE to toggle centering (no Enter needed).
     Press Ctrl+C in the main terminal to quit the node as usual.
     """
+
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     try:
+        # Puts the terminal into "cbreak" mode, which means input is available to the program immediately (without waiting for Enter). This is essential for real-time key detection.
         tty.setcbreak(fd)
         while not spaceship.shutdown:
             ch = sys.stdin.read(1)
@@ -146,6 +256,26 @@ def KeyInput(spaceship):
                 spaceship.get_logger().info(
                     f"Centering {'ENABLED' if spaceship.centering_enabled else 'DISABLED'} (space)."
                 )
+            if ch == "q":
+                spaceship.get_logger().info(
+                    "Quit command received, shutting down..."
+                )
+                spaceship.centering_enabled = False
+                spaceship.shutdown = True
+                time.sleep(0.5)  # let KeyInput loop exit + restore TTY
+                try:
+                    spaceship.destroy_node()
+                except Exception:
+                    pass
+                # Guard against double shutdown
+                try:
+                    if rclpy.ok():
+                        rclpy.shutdown()
+                except Exception:
+                    pass
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
     except Exception as e:
         try:
             spaceship.get_logger().error(f"KeyInput error: {e}")
@@ -159,58 +289,41 @@ def main():
     rclpy.init()
     spaceship = Spaceship()
 
-    # Start keyboard watcher thread (SPACE toggles centering)
+    # keyboard thread (optional)
     threading.Thread(target=KeyInput, args=(spaceship,), daemon=True).start()
-
-    executor = MultiThreadedExecutor()
-    executor.add_node(spaceship)
-    executor.add_node(spaceship.force_node)
-    executor.add_node(spaceship.instr_node)
-    executor.add_node(spaceship.state_node)
-    executor.add_node(spaceship.intmsg_node)
+    # sys library: Provides access to system-specific parameters and functions.
+    # sys.stdin: Standard input stream (usually the keyboard).
+    # sys.stdin.fileno(): Returns the file descriptor (an integer handle) for the input stream. This is needed for low-level terminal operations.
+    fd = sys.stdin.fileno()
+    # termios library: Allows you to configure terminal I/O settings on Unix systems.
+    # termios.tcgetattr(fd): Gets the current terminal settings for the file descriptor fd and saves them. This is so you can restore them later.
+    old_settings = termios.tcgetattr(fd)
 
     try:
-        executor.spin()
+        rclpy.spin(spaceship)  # ONLY ONE NODE TO SPIN
     except KeyboardInterrupt:
+        spaceship.centering_enabled = False
         print("Shutting down spaceship bridge...")
-    finally:
         spaceship.shutdown = True
-        time.sleep(0.1)
-        # Make sure the executor stops pulling callbacks
-        executor.shutdown()
 
-        # (Optional) remove nodes from executor before destroying
-        for n in (
-            spaceship.force_node,
-            spaceship.instr_node,
-            spaceship.state_node,
-            spaceship.intmsg_node,
-            spaceship,
-        ):
-            try:
-                executor.remove_node(n)
-            except Exception:
-                pass  # safe to ignore if already removed
-
-        # Destroy child nodes first, then the bridge
-        for n in (
-            spaceship.force_node,
-            spaceship.instr_node,
-            spaceship.state_node,
-            spaceship.intmsg_node,
-            spaceship,
-        ):
-            try:
-                n.destroy_node()
-            except Exception:
-                pass  # ignore teardown-time races
-
-        # Explicitly shut down the exact context used by these nodes
+        time.sleep(0.5)
+    finally:
+        time.sleep(0.5)  # let KeyInput loop exit + restore TTY
         try:
-            rclpy.shutdown(context=spaceship.context)
-        except Exception:
-            # Context may already be shutting down due to SIGINT
-            pass
+            spaceship.destroy_node()
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        # Guard against double shutdown
+        try:
+            if rclpy.ok():
+                rclpy.shutdown()
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            # Restore the terminal settings when done
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 if __name__ == "__main__":
