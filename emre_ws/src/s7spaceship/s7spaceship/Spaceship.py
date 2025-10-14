@@ -70,22 +70,22 @@ class Spaceship(Node):
             return
 
         # Positions from pose
-        px = self.latest_pose.pose.position.x
-        py = self.latest_pose.pose.position.y
-        pz = self.latest_pose.pose.position.z
+        px = self.latest_pose.position.x
+        py = self.latest_pose.position.y
+        pz = self.latest_pose.position.z
 
-        da = self.latest_pose.pose.orientation.x
-        db = self.latest_pose.pose.orientation.y
-        dg = self.latest_pose.pose.orientation.z
+        da = self.latest_pose.orientation.x
+        db = self.latest_pose.orientation.y
+        dg = self.latest_pose.orientation.z
 
         # Linear velocities from twist
-        vx = self.latest_twist.twist.linear.x
-        vy = self.latest_twist.twist.linear.y
-        vz = self.latest_twist.twist.linear.z
+        vx = self.latest_twist.linear.x
+        vy = self.latest_twist.linear.y
+        vz = self.latest_twist.linear.z
 
-        va = self.latest_twist.twist.angular.x
-        vb = self.latest_twist.twist.angular.y
-        vg = self.latest_twist.twist.angular.z
+        va = self.latest_twist.angular.x
+        vb = self.latest_twist.angular.y
+        vg = self.latest_twist.angular.z
 
         # PD control law
         # The 0.0s represent the center position, this can be altered to change the centering position
@@ -184,7 +184,7 @@ class StateSub:
         self.latest_twist = None
 
     def twist_callback(self, msg):
-        self.latest_twist = msg
+        self.latest_twist = msg.twist
         self.node.get_logger().debug(
             f"Received Twist @ {msg.header.stamp.sec}.{msg.header.stamp.nanosec}"
         )
