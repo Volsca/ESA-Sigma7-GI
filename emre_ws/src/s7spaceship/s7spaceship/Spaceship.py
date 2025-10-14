@@ -14,14 +14,6 @@ from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import WrenchStamped
 from geometry_msgs.msg import TwistStamped
 
-try:
-    from .InstructionPub import InstructionPub
-    from .IntMsgSub import IntMsgSub
-except ImportError:
-    # fallback when running locally as a plain script
-    from InstructionPub import InstructionPub
-    from IntMsgSub import IntMsgSub
-
 
 class Spaceship(Node):
     """
@@ -34,9 +26,9 @@ class Spaceship(Node):
 
         # --- Create your nodes (publishers/subscribers) ---
         self.force_node = ForcePub(self)
-        self.instr_node = InstructionPub()
+        self.instr_node = InstructionPub(self)
         self.state_node = StateSub(self)
-        self.intmsg_node = IntMsgSub()
+        self.intmsg_node = IntMsgSub(self)
 
         self.get_logger().info("Spaceship bridge online...\n")
 
@@ -153,25 +145,24 @@ class ForcePub:
         msg.wrench.torque.x = self.torque_x
         msg.wrench.torque.y = self.torque_y
         msg.wrench.torque.z = self.torque_z
-        try:
-            self.publisher_.publish(msg)
-
-        except Exception as e:
-            self.node.get_logger().error(f"Failed to forward force: {e}")
-        self.publisher_.publish(msg)
-        # light logging only when meaningfully non-zero
-        if (
-            abs(self.force_x)
-            + abs(self.force_y)
-            + abs(self.force_z)
-            + abs(self.torque_x)
-            + abs(self.torque_y)
-            + abs(self.torque_z)
-        ) > 1e-6:
-            self.node.get_logger().info(
-                f"Published force wrench (fx={msg.wrench.force.x}, fy={msg.wrench.force.y}, fz={msg.wrench.force.z}, "
-                f"tx={msg.wrench.torque.x}, ty={msg.wrench.torque.y}, tz={msg.wrench.torque.z})"
-            )
+        if not self.node.shutdown:
+            try:
+                self.publisher_.publish(msg)
+            except Exception as e:
+                self.node.get_logger().error(f"Failed to forward force: {e}")
+            # light logging only when meaningfully non-zero
+            if (
+                abs(self.force_x)
+                + abs(self.force_y)
+                + abs(self.force_z)
+                + abs(self.torque_x)
+                + abs(self.torque_y)
+                + abs(self.torque_z)
+            ) > 1e-6:
+                self.node.get_logger().info(
+                    f"Published force wrench (fx={msg.wrench.force.x}, fy={msg.wrench.force.y}, fz={msg.wrench.force.z}, "
+                    f"tx={msg.wrench.torque.x}, ty={msg.wrench.torque.y}, tz={msg.wrench.torque.z})"
+                )
 
 
 class StateSub:
@@ -204,15 +195,59 @@ class StateSub:
         )
 
 
+class InstructionPub:
+    def __init__(self, node: Node = None):
+        # Initialize the ros2 node with the name "instruction_pub"
+        self.node = node
+
+        # Create a publisher to  to the "control_instruction_topic" topic
+        # 'String' is the message type containing the instruction data in str type
+        # 'control_instruction_topic' is the topic name
+        self.publisher_ = self.node.create_publisher(
+            String, "control_instruction_topic", 1
+        )
+
+    def sendInstruction(self, msg: String):
+        try:
+            self.publisher_.publish(msg)
+            self.node.get_logger().info(f"Published instruction: {msg.data}")
+        except Exception as e:
+            self.node.get_logger().error(f"Failed to publish instruction: {e}")
+            return
+
+
+class IntMsgSub:
+    def __init__(self, node: Node):
+        # Initialize the ros2 node with the name "interface_msg_sub"
+        self.node = node
+
+        # Create a subscriber to the "controller_msg_topic" topic
+        # 'String' is the message type containing the message in str type
+        # 'controller_msg_topic' is the topic name
+        # 'self.msg_callback' is the function to call when a new message is received
+        self.subscription_pose = self.node.create_subscription(
+            String, "controller_msg_topic", self.msg_callback, 10
+        )
+
+        self.latest_msg = None
+
+    def msg_callback(self, msg):
+        # This function is called whenever a new message is received on the "controller_msg_topic"
+        self.node.get_logger().info(f"Received message: {msg.data}")
+        self.latest_msg = msg.data
+
+
 def KeyInput(spaceship):
     """
     Runs in a background thread.
     Press SPACE to toggle centering (no Enter needed).
     Press Ctrl+C in the main terminal to quit the node as usual.
     """
+
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     try:
+        # Puts the terminal into "cbreak" mode, which means input is available to the program immediately (without waiting for Enter). This is essential for real-time key detection.
         tty.setcbreak(fd)
         while not spaceship.shutdown:
             ch = sys.stdin.read(1)
@@ -225,7 +260,22 @@ def KeyInput(spaceship):
                 spaceship.get_logger().info(
                     "Quit command received, shutting down..."
                 )
+                spaceship.centering_enabled = False
                 spaceship.shutdown = True
+                time.sleep(0.5)  # let KeyInput loop exit + restore TTY
+                try:
+                    spaceship.destroy_node()
+                except Exception:
+                    pass
+                # Guard against double shutdown
+                try:
+                    if rclpy.ok():
+                        rclpy.shutdown()
+                except Exception:
+                    pass
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
     except Exception as e:
         try:
             spaceship.get_logger().error(f"KeyInput error: {e}")
@@ -241,24 +291,39 @@ def main():
 
     # keyboard thread (optional)
     threading.Thread(target=KeyInput, args=(spaceship,), daemon=True).start()
+    # sys library: Provides access to system-specific parameters and functions.
+    # sys.stdin: Standard input stream (usually the keyboard).
+    # sys.stdin.fileno(): Returns the file descriptor (an integer handle) for the input stream. This is needed for low-level terminal operations.
+    fd = sys.stdin.fileno()
+    # termios library: Allows you to configure terminal I/O settings on Unix systems.
+    # termios.tcgetattr(fd): Gets the current terminal settings for the file descriptor fd and saves them. This is so you can restore them later.
+    old_settings = termios.tcgetattr(fd)
 
     try:
         rclpy.spin(spaceship)  # ONLY ONE NODE TO SPIN
     except KeyboardInterrupt:
+        spaceship.centering_enabled = False
         print("Shutting down spaceship bridge...")
-    finally:
         spaceship.shutdown = True
-        time.sleep(0.1)  # let KeyInput loop exit + restore TTY
+
+        time.sleep(0.5)
+    finally:
+        time.sleep(0.5)  # let KeyInput loop exit + restore TTY
         try:
             spaceship.destroy_node()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         # Guard against double shutdown
         try:
             if rclpy.ok():
                 rclpy.shutdown()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            # Restore the terminal settings when done
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 if __name__ == "__main__":

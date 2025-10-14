@@ -22,10 +22,6 @@ setup(
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            "StateSubscriber = s7spaceship.StateSub:main",
-            "ForcePublisher = s7spaceship.ForcePub:main",
-            "InterfaceMsgSubscriber = s7spaceship.IntMsgSub:main",
-            "InstructionPublisher = s7spaceship.InstructionPub:main",
             "Spaceship = s7spaceship.Spaceship:main",
         ],
     },
