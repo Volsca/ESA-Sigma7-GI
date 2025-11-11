@@ -10,7 +10,7 @@ int main(int argc, char **argv)
     executor.add_node(mothership->getNode());
     executor.spin();*/
     // rclcpp::spin(mothership->getNode());
-    rclcpp::spin(mothership);//->getNode());
+    rclcpp::spin(mothership->getNode());//->getNode());
     if (rclcpp::ok())
     {
         rclcpp::shutdown();

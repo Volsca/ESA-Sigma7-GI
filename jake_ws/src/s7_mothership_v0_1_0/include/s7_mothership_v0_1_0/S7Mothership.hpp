@@ -531,15 +531,15 @@ public:
  * @class S7Mothership
  * @brief The ROS node in charge of coordinating the entire system side interface
  */
-class S7Mothership : public rclcpp::Node
+class S7Mothership // : public rclcpp::Node
 {
 public:
     /**
      * @brief Constructor for S7Mothership, creates the system side node "s7_mothership"
      */
     S7Mothership()
-        : Node("testi"),
-          node_(std::make_shared<rclcpp::Node>("s7_mothership")),
+        //: Node("testi"),
+        : node_(std::make_shared<rclcpp::Node>("s7_mothership")),
           SharedData_(std::make_shared<SharedData>()),
           CurrentMode_(std::make_shared<S7Mode>()),
           Controller_(std::make_unique<S7Controller>(SharedData_, CurrentMode_)),
