@@ -4,9 +4,16 @@ int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
     auto mothership = std::make_shared<S7Mothership>();
-    mothership->init();
-    rclcpp::spin(mothership);
-    // mothership->~S7Mothership();
-    rclcpp::shutdown();
+    //auto testNode = rclcpp::Node("test_node");
+
+    /*rclcpp::executors::MultiThreadedExecutor executor;
+    executor.add_node(mothership->getNode());
+    executor.spin();*/
+    // rclcpp::spin(mothership->getNode());
+    rclcpp::spin(mothership->getNode());//->getNode());
+    if (rclcpp::ok())
+    {
+        rclcpp::shutdown();
+    }
     return 0;
 }

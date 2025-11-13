@@ -2,11 +2,65 @@
 #include <memory>
 #include <atomic>
 #include <thread>
+#include <mutex>
 #include "drdc.h"
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/twist_stamped.hpp"
 #include "geometry_msgs/msg/wrench_stamped.hpp"
+
+using namespace std::chrono_literals;
+
+/**
+ * @defgroup logger Macros
+ * @brief Macros for simplified ROS2 logging.
+ *
+ * These macros wrap RCLCPP logging functions to allow easy logging,
+ * cause I'm lazy.
+ *
+ * Usage:
+ * @code
+ * LOG_INFO("This is an info message");
+ * LOG_WARN("This is a warning");
+ * LOG_ERROR("This is an error");
+ * @endcode
+ *
+ * @note Must be used inside Mothership class, or similar ros node.
+ * @{
+ */
+/** Log an info-level message */
+#define LOG_INFO(msg) RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "%s", msg)
+/** Log a warning-level message */
+#define LOG_WARN(msg) RCLCPP_WARN(rclcpp::get_logger("s7_mothership"), "%s", msg)
+/** Log an error-level message */
+#define LOG_ERROR(msg) RCLCPP_ERROR(rclcpp::get_logger("s7_mothership"), "%s", msg)
+/** @} */ //
+
+using namespace std::chrono_literals;
+
+/**
+ * @defgroup geometry_msgs Type Aliases
+ * @brief Again, lazy.
+ *
+ * These aliases simplify usage of geometry_msgs common in this here code.
+ *
+ * Usage:
+ * @code
+ * PoseStamped pose;
+ * TwistStamped twist;
+ * WrenchStamped wrench;
+ * @endcode
+ *
+ * @note A wise man once said, a good programmer is a lazy programmer.
+ * @{
+ */
+/// Alias for geometry_msgs::msg::PoseStamped
+using PoseStamped = geometry_msgs::msg::PoseStamped;
+/// Alias for geometry_msgs::msg::TwistStamped
+using TwistStamped = geometry_msgs::msg::TwistStamped;
+/// Alias for geometry_msgs::msg::WrenchStamped
+using WrenchStamped = geometry_msgs::msg::WrenchStamped;
+/** @} */ //
 
 #pragma region subclasses & enums
 /**
@@ -16,30 +70,28 @@
  */
 enum S7Mode
 {
-    BRAKING,
+    // BRAKING,
     FREE,
-    FORCEFEEDBACK,
-    SELF_CENTERING
+    FORCEFEEDBACK //,
+                  // SELF_CENTERING
 };
 
-// Old LockedMessage
-/*
-class LockedPoseMessage
+// Less old LockedMessage, works but doesn't return a shared_ptr
+// and I can't be asked to rewrite it
+/*template <typename msg>
+class LockedMessage
 {
 private:
-    geometry_msgs::msg::PoseStamped::SharedPtr PoseStamped_;
+    msg Message_;
+
     std::atomic<bool> Semaphore_{false};
     std::atomic<bool> JustChanged_{false};
 
 public:
-    LockedPoseMessage()
-    {
-        PoseStamped_ = std::make_shared<geometry_msgs::msg::PoseStamped>();
-    };
+    LockedMessage() = default;
 
-    geometry_msgs::msg::PoseStamped::SharedPtr getMessage() { return PoseStamped_; }
-
-    void setMessage(geometry_msgs::msg::PoseStamped::SharedPtr m) { *PoseStamped_ = *m; }
+    void setMessage(msg m) { Message_ = m; }
+    msg *getMessage() { return &Message_; }
 
     void lock()
     {
@@ -50,6 +102,8 @@ public:
         while (Semaphore_)
         {
             // wait while ressource accessed
+            // Kind of unoptimized but sleeps to avoid 100% CPU burn
+            std::this_thread::sleep_for(std::chrono::microseconds(10));
         }
 
         Semaphore_ = true;
@@ -82,62 +136,263 @@ public:
     }
 };*/
 
-template <typename msg>
-class LockedMessage
+class SharedData
 {
 private:
-    msg Message_;
+    std::mutex pose_mutex;
+    std::unique_ptr<PoseStamped> CurrentPose;
 
-    std::atomic<bool> Semaphore_{false};
-    std::atomic<bool> JustChanged_{false};
+    std::mutex twist_mutex;
+    std::unique_ptr<TwistStamped> CurrentTwist;
+
+    std::mutex wrench_mutex;
+    std::unique_ptr<WrenchStamped> CurrentWrench;
 
 public:
-    LockedMessage() = default;
-
-    void setMessage(msg m) { Message_ = m; }
-    msg *getMessage() { return &Message_; }
-
-    void lock()
+    // Constructor
+    // no need to lock, as the object isn't shared yet
+    explicit SharedData()
+        : CurrentPose(std::make_unique<PoseStamped>()),
+          CurrentTwist(std::make_unique<TwistStamped>()),
+          CurrentWrench(std::make_unique<WrenchStamped>())
     {
-        if (Semaphore_)
+    }
+
+    std::shared_ptr<PoseStamped> getCurrentPose()
+    {
+        std::lock_guard<std::mutex> lock_pose(pose_mutex);
+        auto tmp = std::make_shared<PoseStamped>(*CurrentPose);
+        return tmp;
+    }
+
+    void setCurrentPose(PoseStamped &newPose)
+    {
+        std::lock_guard<std::mutex> lock_pose(pose_mutex);
+        *CurrentPose = newPose;
+    }
+
+    std::shared_ptr<TwistStamped> getCurrentTwist()
+    {
+        std::lock_guard<std::mutex> lock_twist(twist_mutex);
+        auto tmp = std::make_shared<TwistStamped>(*CurrentTwist);
+        return tmp;
+    }
+
+    void setCurrentTwist(TwistStamped &newTwist)
+    {
+        std::lock_guard<std::mutex> lock_twist(twist_mutex);
+        *CurrentTwist = newTwist;
+    }
+
+    std::shared_ptr<WrenchStamped> getCurrentWrench()
+    {
+        std::lock_guard<std::mutex> lock_wrench(wrench_mutex);
+        auto tmp = std::make_shared<WrenchStamped>(*CurrentWrench);
+        return tmp;
+    }
+
+    void setCurrentWrench(std::shared_ptr<WrenchStamped> newWrench)
+    {
+        std::lock_guard<std::mutex> lock_wrench(wrench_mutex);
+        *CurrentWrench = *newWrench;
+    }
+};
+
+/**
+ * @class S7Controller
+ * @brief Object in charge of managing the control and data aquisition
+ * loop of the Sigma7. Links using same-name functions in S7Mothership.
+ *
+ */
+class S7Controller //: public rclcpp::node
+{
+public:
+    S7Controller(std::shared_ptr<SharedData> sharedData, std::shared_ptr<S7Mode> mode)
+        : SharedData_(sharedData),
+          CurrentMode_(mode)
+    {
+    }
+
+    ~S7Controller()
+    {
+        if (stop() < 0)
         {
-            RCLCPP_INFO(rclcpp::get_logger("S7Controller"), "ressource locked\n");
+            LOG_ERROR("failed to stop, shutting down anyways. \nTurn off s7 manually.");
         }
-        while (Semaphore_)
+
+        LOG_INFO("S7 connexion closed.\n");
+    }
+
+    /**
+     * @brief control loop for the Sigma7
+     *
+     * Data is aquired here and shipped off to the S7Mothership,
+     * FF is applied here also, all at a ~500Hz refresh rate
+     */
+    int setForce()
+    {
+        switch (*CurrentMode_)
         {
-            // wait while ressource accessed
-            // Kind of unoptimized but sleeps to avoid 100% CPU burn
-            std::this_thread::sleep_for(std::chrono::microseconds(1));
+        case FREE:
+            if (dhdSetForceAndTorqueAndGripperForce(0, 0, 0, 0, 0, 0, 0) == (DHD_MOTOR_SATURATED | -1))
+            {
+                LOG_ERROR("Motor saturated/unable to set force");
+                return -1;
+            }
+            break;
+
+        case FORCEFEEDBACK:
+            // TODO
+            auto tmpWrench = std::make_shared<WrenchStamped>(*SharedData_->getCurrentWrench());
+
+            // Unnecessary copy, rewrite TODO
+            double fx = (*tmpWrench).wrench.force.x;
+            double fy = (*tmpWrench).wrench.force.y;
+            double fz = (*tmpWrench).wrench.force.z;
+
+            double tx = (*tmpWrench).wrench.torque.x;
+            double ty = (*tmpWrench).wrench.torque.y;
+            double tz = (*tmpWrench).wrench.torque.z;
+
+            if (dhdSetForceAndTorqueAndGripperForce(fx, fy, fz, tx, ty, tz, 1) == (DHD_MOTOR_SATURATED | -1))
+            {
+                LOG_ERROR("Motor saturated/unable to set force");
+                return -1;
+            }
+            break;
         }
 
-        Semaphore_ = true;
+        return 1;
     }
 
-    void unlock()
+    int savePose()
     {
-        if (!Semaphore_)
+        PoseStamped savedPose;
+        // savedPose.header.stamp;    // unmodified
+        // savedPose.header.frame_id; // unmodified
+
+        // Obtain all pose data, gets position twice to be able to retrieve velocity
+        if (dhdGetPosition(&savedPose.pose.position.x, &savedPose.pose.position.y, &savedPose.pose.position.z) == (DHD_ERROR_TIMEOUT | -1))
         {
-            RCLCPP_ERROR(rclcpp::get_logger("S7Controller"), "Ressource not locked\n");
-            return;
+            LOG_ERROR("failed to calculate position");
+            LOG_ERROR(dhdErrorGetLastStr());
+            return -1;
+        }
+        if (dhdGetPosition(&savedPose.pose.position.x, &savedPose.pose.position.y, &savedPose.pose.position.z) == (DHD_ERROR_TIMEOUT | -1))
+        {
+            LOG_ERROR("failed to calculate position ");
+            LOG_ERROR(dhdErrorGetLastStr());
+            return -1;
+        }
+        if (dhdGetOrientationRad(&savedPose.pose.orientation.x, &savedPose.pose.orientation.y, &savedPose.pose.orientation.z) == (DHD_ERROR_TIMEOUT | -1))
+        {
+            LOG_ERROR("failed to calculate angular orientation");
+            LOG_ERROR(dhdErrorGetLastStr());
+            return -1;
         }
 
-        Semaphore_ = false;
+        TwistStamped savedTwist;
+        // savedTwist.header.stamp;    // unmodified
+        // savedTwist.header.frame_id; // unmodified
+
+        // Obtain twist data
+        if (dhdGetLinearVelocity(&savedTwist.twist.linear.x, &savedTwist.twist.linear.y, &savedTwist.twist.linear.z) == (DHD_ERROR_TIMEOUT | -1))
+        {
+            LOG_ERROR("failed to calculate linear velocity");
+            LOG_ERROR(dhdErrorGetLastStr());
+            return -1;
+        }
+        if (dhdGetAngularVelocityRad(&savedTwist.twist.angular.x, &savedTwist.twist.angular.y, &savedTwist.twist.angular.z) == (DHD_ERROR_TIMEOUT | -1))
+        {
+            LOG_ERROR("failed to calculate angular velocity");
+            LOG_ERROR(dhdErrorGetLastStr());
+            return -1;
+        }
+
+        SharedData_->setCurrentPose(savedPose);
+        SharedData_->setCurrentTwist(savedTwist);
+
+        return 1;
     }
 
-    bool justChanged()
+    int initialize()
     {
-        return JustChanged_;
+        if (!hapticInit())
+        {
+            LOG_ERROR("failed to initialize Sigma7, make sure device is on and connected, and Mothership is launched with root privileges.");
+            return -1;
+        }
+
+        return 1;
     }
 
-    void setJustChanged()
+    /**
+     * @brief tells the control loop to stop
+     */
+    int stop()
     {
-        JustChanged_ = true;
+        // Close the connection to the haptic device.
+        if (drdClose() < 0)
+        {
+            LOG_ERROR("failed to close the connection");
+            LOG_ERROR(dhdErrorGetLastStr());
+            dhdSleep(2.0);
+            return -1;
+        }
+
+        return 1;
     }
 
-    void setNotJustChanged()
+protected:
+    /**
+     * @brief configuration function for the Sigma7, sets the encoders
+     * and checks connexion before enabling FF on the arm.
+     */
+    int hapticInit()
     {
-        JustChanged_ = false;
+        if ((drdOpen() < 0))
+        {
+            LOG_ERROR("error: failed to open device");
+            LOG_ERROR(dhdErrorGetLastStr());
+            dhdSleep(2.0);
+            return -1;
+        }
+
+        LOG_INFO(" device detected.\n\nWARNING, do NOT touch Sigma7 during caibration.\n\n");
+
+        if ((drdCheckInit() < 0))
+        {
+            LOG_ERROR("error: failed to reinitialize device (%s)");
+            LOG_ERROR(dhdErrorGetLastStr());
+            dhdSleep(2.0);
+            return -1;
+        }
+        LOG_INFO("moving to center");
+        LOG_INFO("\n");
+        if (drdMoveTo(positionCenter) < 0)
+        {
+            LOG_ERROR("failed to move device");
+            LOG_ERROR(dhdErrorGetLastStr());
+            dhdSleep(2.0);
+            return -1;
+        }
+        // Stop the regulation thread but leaves the forces enabled on the device.
+        if (drdStop(true) < 0)
+        {
+            LOG_ERROR("failed to stop robotic regulation device");
+            LOG_ERROR(dhdErrorGetLastStr());
+            dhdSleep(2.0);
+            return -1;
+        }
+        LOG_INFO("Successfully initialised device");
+        return 1;
     }
+
+private:
+    bool running_ = false;
+    double positionCenter[DHD_MAX_DOF] = {};
+    std::shared_ptr<SharedData> SharedData_;
+    std::shared_ptr<S7Mode> CurrentMode_;
 };
 
 /**
@@ -148,29 +403,6 @@ public:
  */
 class S7StatePublisher
 {
-private:
-    /**
-     * @brief ROS2 publisher for (TODO)PoseStamped messages.
-     */
-    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr publisher_;
-    /**
-     * @brief Temporary ROS2 publisher for TwistStamped messages.
-     */
-    rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr publisher2_;
-
-    /**
-     * @brief Current state stored as a shared pointer to (TODO)PoseStamped.
-     */
-    geometry_msgs::msg::PoseStamped::SharedPtr current_saved_state_;
-
-    LockedMessage<geometry_msgs::msg::PoseStamped> *CurrentPose_;
-    LockedMessage<geometry_msgs::msg::TwistStamped> *CurrentTwist_;
-
-    /**
-     * @brief Mothership node passed as parameter in constructor
-     */
-    rclcpp::Node::SharedPtr node_ = nullptr;
-
 public:
     /**
      * @brief Constructor for S7StatePublisher node.
@@ -179,19 +411,13 @@ public:
      * and creates a publisher on the topic "controller_pose_stamped"
      * , which is subscribed to by a component of S7Spaceship.
      */
-    S7StatePublisher(const rclcpp::Node::SharedPtr &node, LockedMessage<geometry_msgs::msg::PoseStamped> *msg, LockedMessage<geometry_msgs::msg::TwistStamped> *msg2)
+    S7StatePublisher(std::shared_ptr<SharedData> sharedData, std::shared_ptr<rclcpp::Node> node)
+        : SharedData_(sharedData),
+          node_(node)
     {
-        this->node_ = node;
-        publisher_ = node_->create_publisher<geometry_msgs::msg::PoseStamped>("controller_pose_topic", 1);
-        publisher2_ = node_->create_publisher<geometry_msgs::msg::TwistStamped>("controller_twist_topic", 1);
-        CurrentPose_ = msg;
-        CurrentTwist_ = msg2;
+        publisher_ = node_->create_publisher<PoseStamped>("controller_pose_topic", 1);
+        publisher2_ = node_->create_publisher<TwistStamped>("controller_twist_topic", 1);
     }
-
-    /**
-     * @brief Setter for current_saved_state_.
-     */
-    void setCurrentSavedState(geometry_msgs::msg::PoseStamped::SharedPtr newState) { current_saved_state_ = newState; }
 
     /**
      * @brief Publish the current state
@@ -200,56 +426,35 @@ public:
      *
      * @return 1 if published without fail, 0 if current_saved_state_ is null.
      */
-    int8_t publish()
+    void publish()
     {
-        // Pose publish
-        (*CurrentPose_).lock();
-        if ((*CurrentPose_).justChanged())
-        {
-            publisher_->publish((*(*CurrentPose_).getMessage()));
-            // RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "publishing");
-            (*CurrentPose_).setNotJustChanged();
-            (*CurrentPose_).unlock();
-            return 1;
-        }
-        else
-        {
-            RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "posemsg unchanged");
-            (*CurrentPose_).unlock();
-            return 0;
-        }
+        std::shared_ptr<PoseStamped> tmpPose = std::make_shared<PoseStamped>(*SharedData_->getCurrentPose());
+        publisher_->publish(*tmpPose);
 
-        // Twist publish
-        (*CurrentTwist_).lock();
-        if ((*CurrentTwist_).justChanged())
-        {
-            publisher2_->publish((*(*CurrentTwist_).getMessage()));
-            // RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "publishing");
-            (*CurrentTwist_).setNotJustChanged();
-            // debugPublish();
-            (*CurrentTwist_).unlock();
-            return 1;
-        }
-        else
-        {
-            RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "posemsg unchanged");
-            (*CurrentTwist_).unlock();
-            return 0;
-        }
+        std::shared_ptr<TwistStamped> tmpTwist = std::make_shared<TwistStamped>(*SharedData_->getCurrentTwist());
+        publisher2_->publish(*tmpTwist);
+
+        // debugPublish(tmpPose); //, tmpTwist);
     }
 
-    // TO BE USED ONLY IN A LOCKED CONTEXT
     // TODO add twist
-    void debugPublish()
+    /*void debugPublish(std::shared_ptr<PoseStamped> t1) //, std::shared_ptr<TwistStamped> t2)
     {
-        RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "published pos(%f, %f, %f) rot(%f, %f, %f)",
-                    (*(*CurrentPose_).getMessage()).pose.position.x,
-                    (*(*CurrentPose_).getMessage()).pose.position.y,
-                    (*(*CurrentPose_).getMessage()).pose.position.z,
-                    (*(*CurrentPose_).getMessage()).pose.orientation.x,
-                    (*(*CurrentPose_).getMessage()).pose.orientation.y,
-                    (*(*CurrentPose_).getMessage()).pose.orientation.z);
-    }
+        LOG_INFO("publishing pos : ");
+        LOG_INFO((*t1).pose.position.x);
+        LOG_INFO((*t1).pose.position.y);
+        LOG_INFO((*t1).pose.position.z);
+        LOG_INFO("publishing rot : ");
+        LOG_INFO((*t1).pose.orientation.x);
+        LOG_INFO((*t1).pose.orientation.y);
+        LOG_INFO((*t1).pose.orientation.z);
+    }*/
+
+private:
+    std::shared_ptr<SharedData> SharedData_;
+    std::shared_ptr<rclcpp::Node> node_;
+    std::shared_ptr<rclcpp::Publisher<PoseStamped>> publisher_;
+    std::shared_ptr<rclcpp::Publisher<TwistStamped>> publisher2_;
 };
 
 /**
@@ -260,22 +465,6 @@ public:
  */
 class S7ForceSubscriber
 {
-private:
-    /**
-     * @brief ROS2 subscriber for WrenchStamped messages.
-     */
-    rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr subscriber_;
-
-    /**
-     * @brief latest recieved F.F. message from S7Spaceship
-     */
-    LockedMessage<geometry_msgs::msg::WrenchStamped> *CurrentWrench_;
-
-    /**
-     * @brief Mothership node passed as parameter in constructor
-     */
-    rclcpp::Node::SharedPtr node_ = nullptr;
-
 public:
     /**
      * @brief Constructor for S7ForceSubscriber node.
@@ -285,44 +474,37 @@ public:
      * containing F.F. instructions for the S7 arm, which is published
      * to by a component of S7Spaceship.
      */
-    S7ForceSubscriber(const rclcpp::Node::SharedPtr &node, LockedMessage<geometry_msgs::msg::WrenchStamped> *msg)
+    S7ForceSubscriber(std::shared_ptr<SharedData> sharedData, std::shared_ptr<rclcpp::Node> node)
+        : SharedData_(sharedData),
+          node_(node)
     {
+<<<<<<< HEAD
         this->node_ = node;
         CurrentWrench_ = msg;
         subscriber_ = node_->create_subscription<geometry_msgs::msg::WrenchStamped>(
+=======
+        subscriber_ = node_->create_subscription<WrenchStamped>(
+>>>>>>> jake
             "controller_wrench_topic", 1,
             std::bind(&S7ForceSubscriber::messageCallback, this, std::placeholders::_1));
     }
 
-private:
+    ~S7ForceSubscriber() = default;
+
+protected:
     /**
      * @brief Callback function for the subscriber, storing the message
      * in current_saved_wrench_
      */
-    void messageCallback(const geometry_msgs::msg::WrenchStamped::SharedPtr message)
+    void messageCallback(std::shared_ptr<WrenchStamped> newWrench)
     {
-        if (!message)
-        {
-            RCLCPP_WARN(node_->get_logger(), "message in S7ForceSubscriber is null when setting current_saved_wrench_");
-        }
-        setCurrentWrench((*message));
+        SharedData_->setCurrentWrench(newWrench);
     }
 
-    void setCurrentWrench(const geometry_msgs::msg::WrenchStamped message)
-    {
-        (*CurrentWrench_).lock();
-        (*(*CurrentWrench_).getMessage()).header.frame_id = "";
-
-        (*(*CurrentWrench_).getMessage()).wrench.force.x = message.wrench.force.x;
-        (*(*CurrentWrench_).getMessage()).wrench.force.y = message.wrench.force.y;
-        (*(*CurrentWrench_).getMessage()).wrench.force.z = message.wrench.force.z;
-
-        (*(*CurrentWrench_).getMessage()).wrench.torque.x = message.wrench.torque.x;
-        (*(*CurrentWrench_).getMessage()).wrench.torque.y = message.wrench.torque.y;
-        (*(*CurrentWrench_).getMessage()).wrench.torque.z = message.wrench.torque.z;
-        (*CurrentWrench_).setJustChanged();
-        (*CurrentWrench_).unlock();
-    }
+private:
+    std::shared_ptr<SharedData> SharedData_;
+    std::shared_ptr<rclcpp::Node> node_;
+    std::shared_ptr<rclcpp::Subscription<WrenchStamped>> subscriber_;
 };
 
 /**
@@ -349,346 +531,34 @@ public:
     S7InterfaceControlsubscriber(const rclcpp::Node::SharedPtr &node) { node_ = node; }
 };
 
-/**
- * @class S7Controller
- * @brief Object in charge of managing the control and data aquisition
- * loop of the Sigma7. Links using same-name functions in S7Mothership.
- *
- */
-class S7Controller //: public rclcpp::node
-{
-private:
-    /**
-     * @brief neutral angles of the encoders, 8 values for the sigma 7
-     */
-    double positionCenter[DHD_MAX_DOF] = {};
-
-    /**
-     * @brief the current active mode of S7Controller.
-     */
-    S7Mode current_mode_;
-
-    /**
-     * @brief if the main loop is running
-     */
-    bool running_ = false;
-
-    std::thread loop_thread;
-
-    std::atomic<bool> *error;
-    // LockedPoseMessage *CurrentPose_;
-    LockedMessage<geometry_msgs::msg::PoseStamped> *CurrentPose_;
-    LockedMessage<geometry_msgs::msg::TwistStamped> *CurrentTwist_;
-    LockedMessage<geometry_msgs::msg::WrenchStamped> *CurrentWrench_;
-    S7Mode *CurrentMode_;
-
-public:
-    /**
-     * @brief constructor of S7Controller
-     */
-    S7Controller(std::atomic<bool> *e, LockedMessage<geometry_msgs::msg::PoseStamped> *pose, LockedMessage<geometry_msgs::msg::TwistStamped> *twist, LockedMessage<geometry_msgs::msg::WrenchStamped> *wrench, S7Mode *m)
-    {
-        error = e;
-        CurrentPose_ = pose;
-        CurrentTwist_ = twist;
-        CurrentWrench_ = wrench;
-        CurrentMode_ = m;
-    }
-
-    /**
-     * @brief destructor of S7Controller, stops the control loop.
-     */
-    ~S7Controller() { stop(); }
-
-    /**
-     * @brief tells the control loop to start
-     */
-    int run()
-    {
-        // RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "running iteration of controller");
-        return loop();
-    }
-
-    int initialize()
-    {
-        if (!hapticInit())
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("s7_mothership"), "failed to initialize Sigma7, make sure"
-                                                              "device is on and connected, and Mothership"
-                                                              "is launched with root privileges.");
-            (*error) = true;
-            return -1;
-        }
-
-        return 1;
-    }
-
-    /**
-     * @brief tells the control loop to stop
-     */
-    int stop()
-    {
-        // Close the connection to the haptic device.
-        if (drdClose() < 0)
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("s7_mothership"), "error: failed to close the connection (%s)", dhdErrorGetLastStr());
-            dhdSleep(2.0);
-            return -1;
-        }
-
-        RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "S7 connexion closed.\n");
-        return 1;
-    }
-
-private:
-    /**
-     * @brief control loop for the Sigma7
-     *
-     * Data is aquired here and shipped off to the S7Mothership,
-     * FF is applied here also, all at a ~500Hz refresh rate
-     */
-    int loop()
-    {
-        // TODO, data aquisition
-        if (savePose() == -1)
-        {
-            return -1;
-        }
-
-        // TODO, control section
-        if (setForce() == -1)
-        {
-            return -1;
-        }
-
-        return 1;
-    }
-
-    int savePose()
-    {
-        // RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "saving pose");
-
-        // Linear pos/vel
-        double px = 0.0; // current positions
-        double py = 0.0;
-        double pz = 0.0;
-        double vx = 0.0; // current velocities
-        double vy = 0.0;
-        double vz = 0.0;
-
-        // Angular (Alpha Beta Gamma) rot/vel
-        double oa = 0.0; // Angular rotations
-        double ob = 0.0;
-        double og = 0.0;
-        double va = 0.0; // current velocities
-        double vb = 0.0;
-        double vg = 0.0;
-
-        // Obtain all data, gets position twice to be able to retrieve velocity
-        if (dhdGetPosition(&px, &py, &pz) == (DHD_ERROR_TIMEOUT | -1))
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("s7_mothership"), "failed to calculate position (%s)", dhdErrorGetLastStr());
-            return -1;
-        }
-        if (dhdGetPosition(&px, &py, &pz) == (DHD_ERROR_TIMEOUT | -1))
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("s7_mothership"), "failed to calculate position (%s)", dhdErrorGetLastStr());
-            return -1;
-        }
-        if (dhdGetOrientationRad(&oa, &ob, &og) == (DHD_ERROR_TIMEOUT | -1))
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("s7_mothership"), "failed to calculate angular orientation (%s)", dhdErrorGetLastStr());
-            return -1;
-        }
-        if (dhdGetLinearVelocity(&vx, &vy, &vz) == (DHD_ERROR_TIMEOUT | -1))
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("s7_mothership"), "failed to calculate linear velocity (%s)", dhdErrorGetLastStr());
-            return -1;
-        }
-        if (dhdGetAngularVelocityRad(&va, &vb, &vg) == (DHD_ERROR_TIMEOUT | -1))
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("s7_mothership"), "failed to calculate angular velocity (%s)", dhdErrorGetLastStr());
-            return -1;
-        }
-
-        // save the current pose in the semaphore locked pose msg
-        (*CurrentPose_).lock();
-        (*(*CurrentPose_).getMessage()).header.frame_id = "";
-
-        (*(*CurrentPose_).getMessage()).pose.position.x = px;
-        (*(*CurrentPose_).getMessage()).pose.position.y = py;
-        (*(*CurrentPose_).getMessage()).pose.position.z = pz;
-
-        (*(*CurrentPose_).getMessage()).pose.orientation.x = oa;
-        (*(*CurrentPose_).getMessage()).pose.orientation.y = ob;
-        (*(*CurrentPose_).getMessage()).pose.orientation.z = og;
-        (*(*CurrentPose_).getMessage()).pose.orientation.w = 0; // not actually treated like a quaternion so we just ignore the last value
-        (*CurrentPose_).setJustChanged();
-        (*CurrentPose_).unlock();
-
-        // Save the current twist in the semaphore locked twist msg
-        (*CurrentTwist_).lock();
-        (*(*CurrentTwist_).getMessage()).twist.linear.x = vx;
-        (*(*CurrentTwist_).getMessage()).twist.linear.y = vy;
-        (*(*CurrentTwist_).getMessage()).twist.linear.z = vz;
-
-        (*(*CurrentTwist_).getMessage()).twist.angular.x = va;
-        (*(*CurrentTwist_).getMessage()).twist.angular.y = vb;
-        (*(*CurrentTwist_).getMessage()).twist.angular.z = vg;
-        (*CurrentTwist_).setJustChanged();
-        (*CurrentTwist_).unlock();
-
-        return 1;
-    }
-
-    int setForce()
-    {
-        switch (*CurrentMode_)
-        {
-        case FREE:
-            if (dhdSetForceAndTorqueAndGripperForce(0, 0, 0, 0, 0, 0, 0) == (DHD_MOTOR_SATURATED | -1))
-            {
-                RCLCPP_ERROR(rclcpp::get_logger("s7_mothership"), "Motor saturated/unable to set force");
-                return -1;
-            }
-            break;
-
-        case FORCEFEEDBACK:
-            // TODO
-            (*CurrentWrench_).lock();
-            if ((*CurrentWrench_).justChanged())
-            {
-                double fx = (*(*CurrentWrench_).getMessage()).wrench.force.x;
-                double fy = (*(*CurrentWrench_).getMessage()).wrench.force.y;
-                double fz = (*(*CurrentWrench_).getMessage()).wrench.force.z;
-
-                double tx = (*(*CurrentWrench_).getMessage()).wrench.torque.x;
-                double ty = (*(*CurrentWrench_).getMessage()).wrench.torque.y;
-                double tz = (*(*CurrentWrench_).getMessage()).wrench.torque.z;
-
-                if (dhdSetForceAndTorqueAndGripperForce(fx, fy, fz, tx, ty, tz, 1) == (DHD_MOTOR_SATURATED | -1))
-                {
-                    RCLCPP_ERROR(rclcpp::get_logger("s7_mothership"), "Motor saturated/unable to set force");
-                    return -1;
-                }
-                (*CurrentWrench_).setNotJustChanged();
-            }
-            (*CurrentWrench_).unlock();
-            break;
-        default:
-            break;
-        }
-
-        return 1;
-    }
-
-    /**
-     * @brief configuration function for the Sigma7, sets the encoders
-     * and checks connexion before enabling FF on the arm.
-     */
-    int hapticInit()
-    {
-        if ((drdOpen() < 0))
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("S7Controller"), "error: failed to open device (%s)", dhdErrorGetLastStr());
-            dhdSleep(2.0);
-            return -1;
-        }
-
-        RCLCPP_INFO(rclcpp::get_logger("S7Controller"), "%s device detected.\n\n"
-                                                        "WARNING, do NOT touch Sigma7 during caibration.\n\n",
-                    dhdGetSystemName());
-
-        if ((drdCheckInit() < 0))
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("S7Controller"), "error: failed to reinitialize device (%s)", dhdErrorGetLastStr());
-            dhdSleep(2.0);
-            return -1;
-        }
-        RCLCPP_INFO(rclcpp::get_logger("S7Controller"), "moving to :");
-        for (int i = 0; i < DHD_MAX_DOF; ++i)
-        {
-            RCLCPP_INFO(rclcpp::get_logger("S7Controller"), "%f", positionCenter[i]);
-        }
-        RCLCPP_INFO(rclcpp::get_logger("S7Controller"), "\n");
-        if (drdMoveTo(positionCenter) < 0)
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("S7Controller"), "error: failed to move device (%s)", dhdErrorGetLastStr());
-            dhdSleep(2.0);
-            return -1;
-        }
-        // Stop the regulation thread but leaves the forces enabled on the device.
-        if (drdStop(true) < 0)
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("S7Controller"), "error: failed to stop robotic regulation device (%s)", dhdErrorGetLastStr());
-            dhdSleep(2.0);
-            return -1;
-        }
-        RCLCPP_INFO(rclcpp::get_logger("S7Controller"), "Successfully initialised device : %s", dhdGetSystemName());
-        return 1;
-    }
-};
-
 #pragma endregion
 
 /**
  * @class S7Mothership
  * @brief The ROS node in charge of coordinating the entire system side interface
  */
-class S7Mothership : public rclcpp::Node
+class S7Mothership // : public rclcpp::Node
 {
-private:
-    // member objects
-    std::unique_ptr<S7StatePublisher> StatePublisher_;
-    std::unique_ptr<S7ForceSubscriber> ForceSubscriber_;
-    std::unique_ptr<S7Controller> Controller_;
-    std::unique_ptr<S7InterfaceControlPublisher> ControlPublisher_;
-    std::unique_ptr<S7InterfaceControlsubscriber> ControlSubscriber_;
-    S7Mode CurrentMode_;
-    S7Mode RequestedMode_;
-    std::thread loop_thread;
-
-    std::atomic<bool> error{false};
-    // LockedPoseMessage CurrentPose_;
-    LockedMessage<geometry_msgs::msg::PoseStamped> CurrentPose_;
-    LockedMessage<geometry_msgs::msg::TwistStamped> CurrentTwist_;
-    LockedMessage<geometry_msgs::msg::WrenchStamped> CurrentWrench_;
-    bool running_ = true;
-
 public:
     /**
      * @brief Constructor for S7Mothership, creates the system side node "s7_mothership"
      */
-    S7Mothership() : Node("s7_mothership") {}
-
-    /**
-     * @brief Initialisation function for the Mothership
-     *
-     * Creates and shares node/msgs to each object used by the Mothership.
-     */
-    void init()
+    S7Mothership()
+        //: Node("testi"),
+        : node_(std::make_shared<rclcpp::Node>("s7_mothership")),
+          SharedData_(std::make_shared<SharedData>()),
+          CurrentMode_(std::make_shared<S7Mode>()),
+          Controller_(std::make_unique<S7Controller>(SharedData_, CurrentMode_)),
+          StatePublisher_(std::make_unique<S7StatePublisher>(SharedData_, node_)),
+          ForceSubscriber_(std::make_unique<S7ForceSubscriber>(SharedData_, node_))
     {
-        auto self = shared_from_this();
+        (*CurrentMode_) = S7Mode::FREE;
 
-        StatePublisher_ = std::make_unique<S7StatePublisher>(self, &CurrentPose_, &CurrentTwist_);
-        ForceSubscriber_ = std::make_unique<S7ForceSubscriber>(self, &CurrentWrench_);
-        Controller_ = std::make_unique<S7Controller>(&error, &CurrentPose_, &CurrentTwist_, &CurrentWrench_, &CurrentMode_);
-        ControlPublisher_ = std::make_unique<S7InterfaceControlPublisher>(self);
-        ControlSubscriber_ = std::make_unique<S7InterfaceControlsubscriber>(self);
+        // Controller initialization
+        control_thread_ = std::thread(&S7Mothership::initThread, this);
 
-        CurrentMode_ = S7Mode::FORCEFEEDBACK;
-        // start controller thread and main thread
-        RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "Initializing connexion");
-        Controller_->initialize();
-        RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "Initializing main thread");
-        loop_thread = std::thread(&S7Mothership::loop, this);
-    }
-
-    // bodged solution time
-    // TODO fix
-    bool getError()
-    {
-        return error;
+        LOG_INFO("Initializing main thread");
+        loop_timer_ = node_->create_wall_timer(2ms, std::bind(&S7Mothership::loop, this));
     }
 
     /**
@@ -704,59 +574,108 @@ public:
         // Timing control
         using namespace std::chrono;
         const auto period = microseconds(2000);
+        auto start = steady_clock::now();
 
-        // Main loop
-        while (running_)
+        if (running_)
         {
-            // Timing control
-            auto start = steady_clock::now();
-
-            // An iteration of the controller's loop & calls the publisher
-            Controller_->run();
-            StatePublisher_->publish();
-
-            // Exit condition, expandable to other key inputs
-            if (dhdKbHit())
+            if (initialized_)
             {
-                switch (dhdKbGet())
-                {
-                case 'q':
-                {
-                    running_ = false;
-                    RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "Initiating Mothership shutdown");
-                    break;
-                }
-                case 'm':
-                {
-                    if (CurrentMode_ == S7Mode::FREE)
-                    {
-                        CurrentMode_ = S7Mode::FORCEFEEDBACK;
-                    }
-                    else
-                    {
-                        CurrentMode_ = S7Mode::FREE;
-                    }
-                    break;
-                }
-                default:
-                {
-                    break;
-                }
-                }
+                // save pose
+                Controller_->savePose();
+                // publish
+                StatePublisher_->publish();
+                // control step
+                Controller_->setForce();
             }
 
-            // Timing control
-            auto elapsed = steady_clock::now() - start;
-            if (elapsed < period)
+            // get usr input
+            getUserInput();
+        }
+        else
+        {
+            // deal with shutdown
+            Controller_->stop();
+            loop_timer_->cancel();
+            // edge case
+            while (!initialized_)
             {
-                std::this_thread::sleep_for(period - elapsed);
+                // just wait bro
+                std::this_thread::sleep_for(100ms);
             }
-            else // Timing overrun warning
+            rclcpp::shutdown();
+        }
+
+        // Timing control
+        auto elapsed = steady_clock::now() - start;
+        if (!(elapsed < period))
+        {
+            // auto overrun = duration_cast<microseconds>(elapsed - period).count();
+            LOG_WARN("control thread late");
+        }
+    }
+
+    void getUserInput()
+    {
+        if (dhdKbHit())
+        {
+            switch (dhdKbGet())
             {
-                auto overrun = duration_cast<microseconds>(elapsed - period).count();
-                RCLCPP_WARN(rclcpp::get_logger("s7_mothership"),
-                            "main control loop too slow by %ld microseconds.", overrun);
+            case 'q':
+            {
+                running_ = false;
+                RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "Exit called");
+                break;
+            }
+            case 'm':
+            {
+                if ((*CurrentMode_) == S7Mode::FREE)
+                {
+                    (*CurrentMode_) = S7Mode::FORCEFEEDBACK;
+                }
+                else
+                {
+                    (*CurrentMode_) = S7Mode::FREE;
+                }
+                break;
+            }
+            default:
+            {
+                break;
+            }
             }
         }
     }
+
+    void initThread()
+    {
+        LOG_INFO("Initializing connexion");
+        if (Controller_->initialize())
+        {
+            initialized_ = true;
+        }
+        else
+        {
+            LOG_ERROR("failed to initialize controller, shutting down");
+            running_ = false;
+        }
+    }
+
+    std::shared_ptr<rclcpp::Node> getNode()
+    {
+        return node_;
+    }
+
+private:
+    bool running_ = true;
+    bool initialized_ = false;
+    std::shared_ptr<rclcpp::Node> node_;
+    std::shared_ptr<SharedData> SharedData_;
+    std::shared_ptr<S7Mode> CurrentMode_;
+    std::unique_ptr<S7Controller> Controller_;
+    std::thread control_thread_;
+    std::unique_ptr<S7StatePublisher> StatePublisher_;
+    std::unique_ptr<S7ForceSubscriber> ForceSubscriber_;
+    rclcpp::TimerBase::SharedPtr loop_timer_;
+    // std::unique_ptr<S7InterfaceControlPublisher> ControlPublisher_;
+    // std::unique_ptr<S7InterfaceControlsubscriber> ControlSubscriber_;
 };
