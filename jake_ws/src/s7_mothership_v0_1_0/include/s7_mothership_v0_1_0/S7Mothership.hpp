@@ -478,13 +478,7 @@ public:
         : SharedData_(sharedData),
           node_(node)
     {
-<<<<<<< HEAD
-        this->node_ = node;
-        CurrentWrench_ = msg;
-        subscriber_ = node_->create_subscription<geometry_msgs::msg::WrenchStamped>(
-=======
         subscriber_ = node_->create_subscription<WrenchStamped>(
->>>>>>> jake
             "controller_wrench_topic", 1,
             std::bind(&S7ForceSubscriber::messageCallback, this, std::placeholders::_1));
     }
