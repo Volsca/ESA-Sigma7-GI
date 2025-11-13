@@ -552,7 +552,7 @@ public:
         control_thread_ = std::thread(&S7Mothership::initThread, this);
 
         LOG_INFO("Initializing main thread");
-        loop_timer_ = node_->create_wall_timer(50ms, std::bind(&S7Mothership::loop, this));
+        loop_timer_ = node_->create_wall_timer(2ms, std::bind(&S7Mothership::loop, this));
     }
 
     /**
