@@ -13,7 +13,8 @@ from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import WrenchStamped
 from geometry_msgs.msg import TwistStamped
-from trajectory_msgs.msg import JointTrajectory
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from builtin_interfaces.msg import Duration
 
 
 class Spaceship(Node):
@@ -26,10 +27,11 @@ class Spaceship(Node):
         super().__init__("spaceship")
 
         # --- Create your nodes (publishers/subscribers) ---
-        self.force_node = ForcePub(self)
+        # self.force_node = ForcePub(self)
         self.instr_node = InstructionPub(self)
         self.state_node = StateSub(self)
         self.intmsg_node = IntMsgSub(self)
+        self.trajectory_node = TrajectoryPub(self)
 
         self.get_logger().info("Spaceship bridge online...\n")
 
@@ -57,7 +59,7 @@ class Spaceship(Node):
 
         self.centering_enabled = False
         self.shutdown = False
-        self._center_timer = self.create_timer(0.002, self._maybe_center)
+        # self._center_timer = self.create_timer(0.002, self._maybe_center)
         self.get_logger().info("Press SPACE to toggle centering.")
 
     # ---------- UI -> Controller ----------
@@ -69,8 +71,8 @@ class Spaceship(Node):
         except Exception as e:
             self.get_logger().error(f"Failed to forward instruction: {e}")
 
-    def sendforce(self, fx, fy, fz, tx, ty, tz):
-        self.force_node.set_forces(fx, fy, fz, tx, ty, tz)
+    # def sendforce(self, fx, fy, fz, tx, ty, tz):
+    # self.force_node.set_forces(fx, fy, fz, tx, ty, tz)
 
     def centering(self):
         self.latest_pose = self.state_node.latest_pose
@@ -109,7 +111,7 @@ class Spaceship(Node):
 
         force = dx, dy, dz, ta, tb, tg
         self.get_logger().debug(f"Calculated force: {force}")
-        self.sendforce(*force)  # unpack to six positional args
+        # self.sendforce(*force)  # unpack to six positional args
 
     # ---------- Controller -> UI ----------
     def _ctrl_pose_cb(self, msg: PoseStamped):
@@ -120,12 +122,12 @@ class Spaceship(Node):
         msg.data = self.intmsg_node.latest_msg
         self.get_logger().debug(f"Received controller message: {msg.data}")
 
-    def _maybe_center(self):
-        if self.centering_enabled:
-            self.centering()
+    # def _maybe_center(self):
+    # if self.centering_enabled:
+    # self.centering()
 
 
-class trajectoryPub:
+class TrajectoryPub:
     def __init__(self, node: Node = None):
         # Initialize the ros2 node with the name "trajectory_pub"
         self.node = node
@@ -161,9 +163,9 @@ class trajectoryPub:
             "pitch_joint",
             "yaw_joint",
         ]
-        point = JointTrajectory().points
+        point = JointTrajectoryPoint()
         point.positions = [self.x, self.y, self.z, self.ax, self.ay, self.az]
-        point.time_from_start = rclpy.duration.Duration(seconds=0.1).to_msg()
+        point.time_from_start = Duration(sec=0, nanosec=100000000)  # 0.1 s
         msg.points = [point]
 
         try:
