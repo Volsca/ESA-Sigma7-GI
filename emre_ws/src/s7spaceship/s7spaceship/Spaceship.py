@@ -35,16 +35,25 @@ class Spaceship(Node):
         # Latest received messages
 
         # Control gains
-        self.kp = 180
-        self.kd = 25
+        self.kp = 0  # low to start, will increase depending on
+        self.kd = 0
 
         # Derivative and Proportional coefficients for angular axis alpha beta and gamma
-        self.kpa = 1.2
+
+        self.kpa = 0
+        self.kda = 0
+        self.kpb = 0
+        self.kdb = 0
+        self.kpg = 0
+        self.kdg = 0
+
+        """self.kpa = 1.2
         self.kda = 0.1
         self.kpb = 0.55
         self.kdb = 0.14
         self.kpg = 0.3
-        self.kdg = 0.06
+        self.kdg = 0.06"""
+
         self.centering_enabled = False
         self.shutdown = False
         self._center_timer = self.create_timer(0.002, self._maybe_center)
@@ -98,7 +107,7 @@ class Spaceship(Node):
         tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg)
 
         force = dx, dy, dz, ta, tb, tg
-        self.get_logger().info(f"Calculated force: {force}")
+        self.get_logger().debug(f"Calculated force: {force}")
         self.sendforce(*force)  # unpack to six positional args
 
     # ---------- Controller -> UI ----------
@@ -138,32 +147,40 @@ class ForcePub:
 
         now = self.node.get_clock().now().to_msg()
         msg.header.stamp = now
+        if self.node.centering_enabled:
+            msg.wrench.force.x = self.force_x
+            msg.wrench.force.y = self.force_y
+            msg.wrench.force.z = self.force_z
 
-        msg.wrench.force.x = self.force_x
-        msg.wrench.force.y = self.force_y
-        msg.wrench.force.z = self.force_z
+            msg.wrench.torque.x = self.torque_x
+            msg.wrench.torque.y = self.torque_y
+            msg.wrench.torque.z = self.torque_z
+        else:
+            msg.wrench.force.x = 0.0
+            msg.wrench.force.y = 0.0
+            msg.wrench.force.z = 0.0
 
-        msg.wrench.torque.x = self.torque_x
-        msg.wrench.torque.y = self.torque_y
-        msg.wrench.torque.z = self.torque_z
+            msg.wrench.torque.x = 0.0
+            msg.wrench.torque.y = 0.0
+            msg.wrench.torque.z = 0.0
         if not self.node.shutdown:
             try:
                 self.publisher_.publish(msg)
             except Exception as e:
                 self.node.get_logger().error(f"Failed to forward force: {e}")
             # light logging only when meaningfully non-zero
-            if (
-                abs(self.force_x)
-                + abs(self.force_y)
-                + abs(self.force_z)
-                + abs(self.torque_x)
-                + abs(self.torque_y)
-                + abs(self.torque_z)
-            ) > 1e-6:
-                self.node.get_logger().info(
-                    f"Published force wrench (fx={msg.wrench.force.x}, fy={msg.wrench.force.y}, fz={msg.wrench.force.z}, "
-                    f"tx={msg.wrench.torque.x}, ty={msg.wrench.torque.y}, tz={msg.wrench.torque.z})"
-                )
+
+            x = abs(round(float(msg.wrench.force.x), 6))
+            y = abs(round(float(msg.wrench.force.y), 6))
+            z = abs(round(float(msg.wrench.force.z), 6))
+            tx = abs(round(float(msg.wrench.torque.x), 6))
+            ty = abs(round(float(msg.wrench.torque.y), 6))
+            tz = abs(round(float(msg.wrench.torque.z), 6))
+
+            self.node.get_logger().info(
+                f"Published force wrench (fx={x}, fy={y}, fz={z}, "
+                f"tx={tx}, ty={ty}, tz={tz})"
+            )
 
 
 # TODO Test with S7 to see if this is receiving
