@@ -13,6 +13,7 @@ from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import WrenchStamped
 from geometry_msgs.msg import TwistStamped
+from trajectory_msgs.msg import JointTrajectory
 
 
 class Spaceship(Node):
@@ -122,6 +123,60 @@ class Spaceship(Node):
     def _maybe_center(self):
         if self.centering_enabled:
             self.centering()
+
+
+class trajectoryPub:
+    def __init__(self, node: Node = None):
+        # Initialize the ros2 node with the name "trajectory_pub"
+        self.node = node
+
+        # Create a publisher to  to the "controller_trajectory_topic" topic
+        # 'JointTrajectory' is the message type containing the trajectory data
+        # 'controller_trajectory_topic' is the topic name
+        self.publisher_ = self.node.create_publisher(
+            JointTrajectory,
+            "/joint_trajectory_controller/joint_trajectory",
+            10,
+        )
+        self._timer_cb = node.create_timer(0.002, self._timer_cb)  # 500 Hz
+        self.x = 0.0
+        self.y = 0.0
+        self.z = 0.0
+        self.ax = 0.0
+        self.ay = 0.0
+        self.az = 0.0
+
+    def _timer_cb(self):
+        # Forward via your TrajectoryPub's publisher_
+        msg = JointTrajectory()
+        now = self.node.get_clock().now().to_msg()
+        msg.header.stamp = now
+        # Fill in the JointTrajectory message fields as needed
+        # For example, setting joint names and positions
+        msg.joint_names = [
+            "x_joint",
+            "y_joint",
+            "z_joint",
+            "roll_joint",
+            "pitch_joint",
+            "yaw_joint",
+        ]
+        point = JointTrajectory().points
+        point.positions = [self.x, self.y, self.z, self.ax, self.ay, self.az]
+        point.time_from_start = rclpy.duration.Duration(seconds=0.1).to_msg()
+        msg.points = [point]
+
+        try:
+            self.publisher_.publish(msg)
+            self.node.get_logger().info("Published trajectory message")
+
+            self.node.get_logger().info(
+                f"Published trajectory data (x={self.x}, y={self.y}, z={self.z}, "
+                f"roll={self.ax}, pitch={self.ay}, yaw={self.az})"
+            )
+        except Exception as e:
+            self.node.get_logger().error(f"Failed to publish trajectory: {e}")
+            return
 
 
 # TODO Test with S7 to see if its receiving
