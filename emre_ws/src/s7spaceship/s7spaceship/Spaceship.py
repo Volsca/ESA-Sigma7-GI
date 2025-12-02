@@ -35,7 +35,7 @@ class Spaceship(Node):
         # Latest received messages
 
         # Control gains
-        self.kp = 0 #low to start, will increase depending on 
+        self.kp = 0  # low to start, will increase depending on
         self.kd = 0
 
         # Derivative and Proportional coefficients for angular axis alpha beta and gamma
@@ -69,7 +69,9 @@ class Spaceship(Node):
             self.get_logger().error(f"Failed to forward instruction: {e}")
 
     def sendforce(self, fx, fy, fz, tx, ty, tz):
-        self.force_node.set_forces(fx, fy, fz, tx, ty, tz)
+        self.force_node.set_forces(
+            fx, fy, fz, tx, ty, tz, self.latest_pose.header.frame_id
+        )
 
     def centering(self):
         self.latest_pose = self.state_node.latest_pose
@@ -106,9 +108,11 @@ class Spaceship(Node):
         tb = self.kpb * (0.0 - db) + self.kdb * (0.0 - vb)
         tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg)
 
-        force = dx, dy, dz, ta, tb, tg 
+        force = dx, dy, dz, ta, tb, tg
         self.get_logger().debug(f"Calculated force: {force}")
-        self.sendforce(*force)  # unpack to six positional args
+        self.sendforce(
+            *force, self.latest_pose.header
+        )  # unpack to six positional args
 
     # ---------- Controller -> UI ----------
     def _ctrl_pose_cb(self, msg: PoseStamped):
@@ -135,18 +139,22 @@ class ForcePub:
         self.force_x = self.force_y = self.force_z = 0.0
         self.torque_x = self.torque_y = self.torque_z = 0.0
         # optional high-rate publisher owned by the SAME node
-        self._timer = node.create_timer(0.002, self._timer_cb)  # 500 Hz
+        # self._timer = node.create_timer(0.002, self._timer_cb)  # 500 Hz
 
-    def set_forces(self, fx=0.0, fy=0.0, fz=0.0, tx=0.0, ty=0.0, tz=0.0):
+    def set_forces(
+        self, fx=0.0, fy=0.0, fz=0.0, tx=0.0, ty=0.0, tz=0.0, frame_id=None
+    ):
         self.force_x, self.force_y, self.force_z = fx, fy, fz
         self.torque_x, self.torque_y, self.torque_z = tx, ty, tz
-
-    def _timer_cb(self):
         # Forward via your ForcePub's publisher_
         msg = WrenchStamped()
 
         now = self.node.get_clock().now().to_msg()
         msg.header.stamp = now
+        if frame_id is None:
+            frame_id = "NOT_SET"
+        else:
+            msg.header.frame_id = frame_id
         if self.node.centering_enabled:
             msg.wrench.force.x = self.force_x
             msg.wrench.force.y = self.force_y
@@ -180,6 +188,9 @@ class ForcePub:
             self.node.get_logger().info(
                 f"Published force wrench (fx={x}, fy={y}, fz={z}, "
                 f"tx={tx}, ty={ty}, tz={tz})"
+            )
+            self.node.get_logger().info(
+                f"Published wrench message with message id: {msg.header.frame_id}"
             )
 
 
