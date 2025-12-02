@@ -1,7 +1,11 @@
 #include <chrono>
+#include <fstream>
+#include <string>
 #include <memory>
 #include <atomic>
 #include <thread>
+#include <ctime>
+#include <vector>
 #include <mutex>
 #include "drdc.h"
 #include "rclcpp/rclcpp.hpp"
@@ -62,7 +66,44 @@ using TwistStamped = geometry_msgs::msg::TwistStamped;
 using WrenchStamped = geometry_msgs::msg::WrenchStamped;
 /** @} */ //
 
+/**
+ * @defgroup Structs for CSVLogger class
+ * @brief creating data types for vectors
+ *
+ * Probably not optimised
+ *
+ * @{
+ */
+/// Struct for logging response time between publishing and subscribing.
+struct ResponseTime
+{
+    u_int id;
+    int64_t time1; // Convert from header.time with : rclcpp::Time ros_time(msg.header.stamp);
+    int64_t time2;
+    // time_t time3;
+};
+/// Struct for logging operation time between retrieving data, publishing, and controlling
+struct OperationTime
+{
+    int id;
+    int64_t sTime;
+    int64_t saveTime;
+    int64_t pubTime; // Yeaaaah pub time
+    int64_t ctrlTime;
+    int64_t endTime;
+};
+/// Struct for logging avg data lock time of the SharedData class
+struct LockTime
+{
+    std::string data;
+    std::string lockSource;
+    int64_t lockTime;
+};
+
+/**@} */
+
 #pragma region subclasses & enums
+
 /**
  * @enum S7Mode
  * @brief State Machine definitions for different modes used by the S7Mothership
@@ -76,66 +117,10 @@ enum S7Mode
                   // SELF_CENTERING
 };
 
-// Less old LockedMessage, works but doesn't return a shared_ptr
-// and I can't be asked to rewrite it
-/*template <typename msg>
-class LockedMessage
-{
-private:
-    msg Message_;
-
-    std::atomic<bool> Semaphore_{false};
-    std::atomic<bool> JustChanged_{false};
-
-public:
-    LockedMessage() = default;
-
-    void setMessage(msg m) { Message_ = m; }
-    msg *getMessage() { return &Message_; }
-
-    void lock()
-    {
-        if (Semaphore_)
-        {
-            RCLCPP_INFO(rclcpp::get_logger("S7Controller"), "ressource locked\n");
-        }
-        while (Semaphore_)
-        {
-            // wait while ressource accessed
-            // Kind of unoptimized but sleeps to avoid 100% CPU burn
-            std::this_thread::sleep_for(std::chrono::microseconds(10));
-        }
-
-        Semaphore_ = true;
-    }
-
-    void unlock()
-    {
-        if (!Semaphore_)
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("S7Controller"), "Ressource not locked\n");
-            return;
-        }
-
-        Semaphore_ = false;
-    }
-
-    bool justChanged()
-    {
-        return JustChanged_;
-    }
-
-    void setJustChanged()
-    {
-        JustChanged_ = true;
-    }
-
-    void setNotJustChanged()
-    {
-        JustChanged_ = false;
-    }
-};*/
-
+/**
+ * @class SharedData
+ * @brief RAII Class managing data locking between each class using the pose messages m
+ */
 class SharedData
 {
 private:
@@ -199,6 +184,110 @@ public:
 };
 
 /**
+ * @class CSVLogger
+ * @brief Custom manual logging tool, meant to write timestamps to csv file.
+ *
+ * Called manually by way of its public member functions, so not automatic.
+ * Requires corresponding debug flags on build for each debugging type.
+ *
+ * DEBUG_RESPONSE_TIME : for response time logging
+ * DEBUG_OPERATION_TIME : for main loop time logging
+ * DEBUG_LOCK_TIME : for SharedData lock time logging
+ */
+class CSVLogger
+{
+public:
+    CSVLogger(std::shared_ptr<SharedData> shareddata)
+        : rtFile("response_time_log.csv", std::ios::out),
+          SharedData_(shareddata)
+    {
+        if (!rtFile.is_open())
+        {
+            LOG_ERROR("Failed to open file : response_time_log");
+        }
+        else
+        {
+            rtFile << "id_number, publish_time, subscibe_time\n";
+        }
+    }
+
+    /**
+     * @brief Call to write pose time to logger buffer
+     *
+     * needs to be called before a new pose check is called, to not skip messages.
+     */
+    void logPose(u_int id, int64_t time)
+    {
+        // write to latest vector only the pose message time setting corresponding time2 to 0 untill sub message arrives
+        ResponseTime R = {id, time, 0};
+        rtBuffer.push_back(R);
+    }
+
+    /**
+     * @brief end of code flush to write all the data in csv files
+     */
+    void flush()
+    {
+#ifdef DEBUG_RESPONSE_TIME
+        writeResponseTime();
+#endif
+#ifdef DEBUG_OPERATION_TIME
+        writeOperationTime();
+#endif
+#ifdef DEBUG_LOCK_TIME
+        writeLockTime();
+#endif
+    }
+
+    /**
+     * @brief call to write the latest wrench to its corresponding ID in the buffer
+     */
+    void logWrench(u_int id, int64_t time)
+    {
+        // write to correct spot in the vector
+        // doesn't check if the spot exists in the vector (ideally doesn't need to as a force recieved should always have the same ID as a pose already logged)
+        // And also I'm lazy af
+        if (id < rtBuffer.size())
+        {
+            rtBuffer[id].time2 = time;
+        }
+        else
+        {
+            LOG_ERROR("Tried to log wrench when insufficent space");
+        }
+    }
+
+private:
+    /**
+     * @brief writes all of rtBuffer to csv file
+     */
+    void writeResponseTime()
+    {
+        for (std::vector<ResponseTime>::iterator it = rtBuffer.begin(); it != rtBuffer.end(); ++it)
+        {
+            rtFile << it->id << "," << it->time1 << "," << it->time2 << "\n";
+        }
+        rtFile.flush();
+        LOG_INFO("CSV file for response time flushed");
+    }
+
+    // todo
+    void writeOperationTime()
+    {
+    }
+
+    // todo
+    void writeLockTime()
+    {
+    }
+
+private:
+    std::ofstream rtFile;
+    std::vector<ResponseTime> rtBuffer;
+    std::shared_ptr<SharedData> SharedData_;
+};
+
+/**
  * @class S7Controller
  * @brief Object in charge of managing the control and data aquisition
  * loop of the Sigma7. Links using same-name functions in S7Mothership.
@@ -207,8 +296,9 @@ public:
 class S7Controller //: public rclcpp::node
 {
 public:
-    S7Controller(std::shared_ptr<SharedData> sharedData, std::shared_ptr<S7Mode> mode)
-        : SharedData_(sharedData),
+    S7Controller(std::shared_ptr<SharedData> sharedData, std::shared_ptr<S7Mode> mode, std::shared_ptr<CSVLogger> csvlogger)
+        : CSVLogger_(csvlogger),
+          SharedData_(sharedData),
           CurrentMode_(mode)
     {
     }
@@ -268,8 +358,9 @@ public:
     int savePose()
     {
         PoseStamped savedPose;
-        // savedPose.header.stamp;    // unmodified
-        // savedPose.header.frame_id; // unmodified
+        rclcpp::Time t = rclcpp::Clock().now();
+        savedPose.header.stamp = t;
+        savedPose.header.frame_id = std::to_string(frame_id_); // set frame_id
 
         // Obtain all pose data, gets position twice to be able to retrieve velocity
         if (dhdGetPosition(&savedPose.pose.position.x, &savedPose.pose.position.y, &savedPose.pose.position.z) == (DHD_ERROR_TIMEOUT | -1))
@@ -292,8 +383,8 @@ public:
         }
 
         TwistStamped savedTwist;
-        // savedTwist.header.stamp;    // unmodified
-        // savedTwist.header.frame_id; // unmodified
+        savedTwist.header.stamp = t;
+        savedTwist.header.frame_id = std::to_string(frame_id_); // set frame_id
 
         // Obtain twist data
         if (dhdGetLinearVelocity(&savedTwist.twist.linear.x, &savedTwist.twist.linear.y, &savedTwist.twist.linear.z) == (DHD_ERROR_TIMEOUT | -1))
@@ -312,6 +403,14 @@ public:
         SharedData_->setCurrentPose(savedPose);
         SharedData_->setCurrentTwist(savedTwist);
 
+// Log relevant data (before publish to avoid sub messages arriving in the logs too early)
+#ifdef DEBUG_RESPONSE_TIME
+        // log the pose (remember the static cast here)
+        CSVLogger_->logPose(std::abs(frame_id_), static_cast<int64_t>(t.nanoseconds() / 1000000)); // the std::abs() is to
+#endif
+
+        // Increment frame_id
+        frame_id_++;
         return 1;
     }
 
@@ -358,7 +457,8 @@ protected:
             return -1;
         }
 
-        LOG_INFO(" device detected.\n\nWARNING, do NOT touch Sigma7 during caibration.\n\n");
+        LOG_INFO("Device Detected");
+        LOG_WARN("WARNING, do NOT touch Sigma7 during caibration.\n\n");
 
         if ((drdCheckInit() < 0))
         {
@@ -389,10 +489,12 @@ protected:
     }
 
 private:
+    std::shared_ptr<CSVLogger> CSVLogger_;
     bool running_ = false;
     double positionCenter[DHD_MAX_DOF] = {};
     std::shared_ptr<SharedData> SharedData_;
     std::shared_ptr<S7Mode> CurrentMode_;
+    int frame_id_ = 0;
 };
 
 /**
@@ -474,8 +576,9 @@ public:
      * containing F.F. instructions for the S7 arm, which is published
      * to by a component of S7Spaceship.
      */
-    S7ForceSubscriber(std::shared_ptr<SharedData> sharedData, std::shared_ptr<rclcpp::Node> node)
+    S7ForceSubscriber(std::shared_ptr<SharedData> sharedData, std::shared_ptr<rclcpp::Node> node, std::shared_ptr<CSVLogger> csvlogger)
         : SharedData_(sharedData),
+          CSVLogger_(csvlogger),
           node_(node)
     {
         subscriber_ = node_->create_subscription<WrenchStamped>(
@@ -493,10 +596,20 @@ protected:
     void messageCallback(std::shared_ptr<WrenchStamped> newWrench)
     {
         SharedData_->setCurrentWrench(newWrench);
+
+        // Log the response from spaceship
+#ifdef DEBUG_RESPONSE_TIME
+        std::string id = newWrench->header.frame_id;
+        int idValue = std::stoi(id);
+        rclcpp::Time t(newWrench->header.stamp);
+
+        CSVLogger_->logWrench(std::abs(idValue), static_cast<int64_t>(t.nanoseconds() / 1000000));
+#endif
     }
 
 private:
     std::shared_ptr<SharedData> SharedData_;
+    std::shared_ptr<CSVLogger> CSVLogger_;
     std::shared_ptr<rclcpp::Node> node_;
     std::shared_ptr<rclcpp::Subscription<WrenchStamped>> subscriber_;
 };
@@ -541,11 +654,14 @@ public:
         //: Node("testi"),
         : node_(std::make_shared<rclcpp::Node>("s7_mothership")),
           SharedData_(std::make_shared<SharedData>()),
+          CSVLogger_(std::make_shared<CSVLogger>(SharedData_)),
           CurrentMode_(std::make_shared<S7Mode>()),
-          Controller_(std::make_unique<S7Controller>(SharedData_, CurrentMode_)),
+          Controller_(std::make_unique<S7Controller>(SharedData_, CurrentMode_, CSVLogger_)),
           StatePublisher_(std::make_unique<S7StatePublisher>(SharedData_, node_)),
-          ForceSubscriber_(std::make_unique<S7ForceSubscriber>(SharedData_, node_))
+          ForceSubscriber_(std::make_unique<S7ForceSubscriber>(SharedData_, node_, CSVLogger_))
     {
+        showStartupScreen();
+
         (*CurrentMode_) = S7Mode::FREE;
 
         // Controller initialization
@@ -553,6 +669,16 @@ public:
 
         LOG_INFO("Initializing main thread");
         loop_timer_ = node_->create_wall_timer(2ms, std::bind(&S7Mothership::loop, this));
+
+#ifdef DEBUG_RESPONSE_TIME
+        LOG_WARN("Response time logging enabled, expect slightly higher latency on main loop.");
+#endif
+#ifdef DEBUG_OPERATION_TIME
+        LOG_WARN("Operation time logging enabled, expect slightly higher latency on main loop.");
+#endif
+#ifdef DEBUG_LOCK_TIME
+        LOG_WARN("Lock time logging enabled, expect slightly higher latency overall.");
+#endif
     }
 
     /**
@@ -590,6 +716,7 @@ public:
             // deal with shutdown
             Controller_->stop();
             loop_timer_->cancel();
+            CSVLogger_->flush();
             // edge case
             while (!initialized_)
             {
@@ -608,6 +735,11 @@ public:
         }
     }
 
+    /**
+     * @brief Function to manage user input during runtime
+     *
+     * Factorisation from main loop
+     */
     void getUserInput()
     {
         if (dhdKbHit())
@@ -640,6 +772,9 @@ public:
         }
     }
 
+    /**
+     *
+     */
     void initThread()
     {
         LOG_INFO("Initializing connexion");
@@ -660,10 +795,28 @@ public:
     }
 
 private:
+    void showStartupScreen()
+    {
+        LOG_INFO("Sigma-7 interface mothership, written by Jacob Wallace & Emre Artar - 2025");
+        LOG_INFO("______________________________________________________________________________________________________");
+        LOG_INFO("'##::::'##::'#######::'########:'##::::'##:'########:'########:::'######::'##::::'##:'####:'########::");
+        LOG_INFO(" ###::'###:'##.... ##:... ##..:: ##:::: ##: ##.....:: ##.... ##:'##... ##: ##:::: ##:. ##:: ##.... ##:");
+        LOG_INFO(" ####'####: ##:::: ##:::: ##:::: ##:::: ##: ##::::::: ##:::: ##: ##:::..:: ##:::: ##:: ##:: ##:::: ##:");
+        LOG_INFO(" ## ### ##: ##:::: ##:::: ##:::: #########: ######::: ########::. ######:: #########:: ##:: ########::");
+        LOG_INFO(" ##. #: ##: ##:::: ##:::: ##:::: ##.... ##: ##...:::: ##.. ##::::..... ##: ##.... ##:: ##:: ##.....:::");
+        LOG_INFO(" ##:.:: ##: ##:::: ##:::: ##:::: ##:::: ##: ##::::::: ##::. ##::'##::: ##: ##:::: ##:: ##:: ##::::::::");
+        LOG_INFO(" ##:::: ##:. #######::::: ##:::: ##:::: ##: ########: ##:::. ##:. ######:: ##:::: ##:'####: ##::::::::");
+        LOG_INFO("..:::::..:::.......::::::..:::::..:::::..::........::..:::::..:::......:::..:::::..::....::..:::::::::");
+        LOG_INFO("______________________________________________________________________________________________________\n");
+        LOG_INFO("Wait for program initialisation and Sigma-7 calibration before interacting with Sigma-7.");
+    }
+
+private:
     bool running_ = true;
     bool initialized_ = false;
     std::shared_ptr<rclcpp::Node> node_;
     std::shared_ptr<SharedData> SharedData_;
+    std::shared_ptr<CSVLogger> CSVLogger_;
     std::shared_ptr<S7Mode> CurrentMode_;
     std::unique_ptr<S7Controller> Controller_;
     std::thread control_thread_;

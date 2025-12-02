@@ -55,4 +55,9 @@ install(DIRECTORY third_party/libs/
   DESTINATION lib
 )
 
+#set debugging
+#target_compile_definitions(s7_mothership_node PRIVATE DEBUG_OPERATION_TIME)
+target_compile_definitions(s7_mothership_node PRIVATE DEBUG_RESPONSE_TIME)
+#target_compile_definitions(s7_mothership_node PRIVATE DEBUG_LOCK_TIME)
+
 ament_package()
