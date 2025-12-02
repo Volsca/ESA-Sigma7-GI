@@ -68,10 +68,8 @@ class Spaceship(Node):
         except Exception as e:
             self.get_logger().error(f"Failed to forward instruction: {e}")
 
-    def sendforce(self, fx, fy, fz, tx, ty, tz):
-        self.force_node.set_forces(
-            fx, fy, fz, tx, ty, tz, self.latest_pose.header.frame_id
-        )
+    def sendforce(self, fx, fy, fz, tx, ty, tz, frame_id=None):
+        self.force_node.set_forces(fx, fy, fz, tx, ty, tz, frame_id)
 
     def centering(self):
         self.latest_pose = self.state_node.latest_pose
@@ -111,7 +109,7 @@ class Spaceship(Node):
         force = dx, dy, dz, ta, tb, tg
         self.get_logger().debug(f"Calculated force: {force}")
         self.sendforce(
-            *force, self.latest_pose.header
+            *force, self.latest_pose.header.frame_id
         )  # unpack to six positional args
 
     # ---------- Controller -> UI ----------
