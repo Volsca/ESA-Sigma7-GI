@@ -51,3 +51,5 @@ qtcreator-*
 CATKIN_IGNORE
 jake_ws/src/*.csv#
 jake_ws/src/*.csv
+*.csv
+*.csv#

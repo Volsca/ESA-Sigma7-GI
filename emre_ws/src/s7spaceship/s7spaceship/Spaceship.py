@@ -68,10 +68,8 @@ class Spaceship(Node):
         except Exception as e:
             self.get_logger().error(f"Failed to forward instruction: {e}")
 
-    def sendforce(self, fx, fy, fz, tx, ty, tz):
-        self.force_node.set_forces(
-            fx, fy, fz, tx, ty, tz, self.latest_pose.header.frame_id
-        )
+    def sendforce(self, fx, fy, fz, tx, ty, tz, frame_id=None):
+        self.force_node.set_forces(fx, fy, fz, tx, ty, tz, frame_id)
 
     def centering(self):
         self.latest_pose = self.state_node.latest_pose
@@ -81,22 +79,22 @@ class Spaceship(Node):
             return
 
         # Positions from pose
-        px = self.latest_pose.position.x
-        py = self.latest_pose.position.y
-        pz = self.latest_pose.position.z
+        px = self.latest_pose.pose.position.x
+        py = self.latest_pose.pose.position.y
+        pz = self.latest_pose.pose.position.z
 
-        da = self.latest_pose.orientation.x
-        db = self.latest_pose.orientation.y
-        dg = self.latest_pose.orientation.z
+        da = self.latest_pose.pose.orientation.x
+        db = self.latest_pose.pose.orientation.y
+        dg = self.latest_pose.pose.orientation.z
 
         # Linear velocities from twist
-        vx = self.latest_twist.linear.x
-        vy = self.latest_twist.linear.y
-        vz = self.latest_twist.linear.z
+        vx = self.latest_twist.twist.linear.x
+        vy = self.latest_twist.twist.linear.y
+        vz = self.latest_twist.twist.linear.z
 
-        va = self.latest_twist.angular.x
-        vb = self.latest_twist.angular.y
-        vg = self.latest_twist.angular.z
+        va = self.latest_twist.twist.angular.x
+        vb = self.latest_twist.twist.angular.y
+        vg = self.latest_twist.twist.angular.z
 
         # PD control law
         # The 0.0s represent the center position, this can be altered to change the centering position
@@ -111,7 +109,7 @@ class Spaceship(Node):
         force = dx, dy, dz, ta, tb, tg
         self.get_logger().debug(f"Calculated force: {force}")
         self.sendforce(
-            *force, self.latest_pose.header
+            *force, self.latest_pose.header.frame_id
         )  # unpack to six positional args
 
     # ---------- Controller -> UI ----------
@@ -212,14 +210,14 @@ class StateSub:
         self.latest_twist = None
 
     def twist_callback(self, msg):
-        self.latest_twist = msg.twist
+        self.latest_twist = msg
         self.node.get_logger().debug(
             f"Received Twist @ {msg.header.stamp.sec}.{msg.header.stamp.nanosec}"
         )
 
     def pose_callback(self, msg):
         # This function is called whenever a new message is received on the "controller_pose_topic"
-        self.latest_pose = msg.pose
+        self.latest_pose = msg
         self.node.get_logger().debug(
             f"Received Pose @ {msg.header.stamp.sec}.{msg.header.stamp.nanosec}"
         )
