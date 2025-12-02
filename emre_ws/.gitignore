@@ -100,3 +100,7 @@ Thumbs.db
 
 # Catkin custom files
 CATKIN_IGNORE
+
+# Ignore framelist file
+*.csv
+*.csv#
