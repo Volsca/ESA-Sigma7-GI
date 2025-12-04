@@ -346,10 +346,23 @@ def main():
         try:
             with open("framelist.csv", "w", newline="") as f:
                 writer = csv.writer(f)
-                writer.writerow(
-                    ["Received Frames"] + spaceship.receivedframelist
+                writer.writerow(["Received Frames", "Sent Frames"])
+                max_len = max(
+                    len(spaceship.receivedframelist),
+                    len(spaceship.sentframelist),
                 )
-                writer.writerow(["Sent Frames"] + spaceship.sentframelist)
+                for i in range(max_len):
+                    received = (
+                        spaceship.receivedframelist[i]
+                        if i < len(spaceship.receivedframelist)
+                        else ""
+                    )
+                    sent = (
+                        spaceship.sentframelist[i]
+                        if i < len(spaceship.sentframelist)
+                        else ""
+                    )
+                    writer.writerow([received, sent])
                 spaceship.get_logger().info(
                     f"Saved {len(spaceship.sentframelist)} sent and {len(spaceship.receivedframelist)} received frames to framelist.csv"
                 )
