@@ -9,9 +9,10 @@
 #include <mutex>
 #include "drdc.h"
 #include "rclcpp/rclcpp.hpp"
-#include "geometry_msgs/msg/pose_stamped.hpp"
-#include "geometry_msgs/msg/twist_stamped.hpp"
+// #include "geometry_msgs/msg/pose_stamped.hpp"
+// #include "geometry_msgs/msg/twist_stamped.hpp"
 #include "geometry_msgs/msg/wrench_stamped.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 
 using namespace std::chrono_literals;
 
@@ -59,9 +60,11 @@ using namespace std::chrono_literals;
  * @{
  */
 /// Alias for geometry_msgs::msg::PoseStamped
-using PoseStamped = geometry_msgs::msg::PoseStamped;
+// using PoseStamped = geometry_msgs::msg::PoseStamped;
 /// Alias for geometry_msgs::msg::TwistStamped
-using TwistStamped = geometry_msgs::msg::TwistStamped;
+// using TwistStamped = geometry_msgs::msg::TwistStamped;
+/// Alias for nav_msgs::msg::Odometry;
+using Odometry = nav_msgs::msg::Odometry;
 /// Alias for geometry_msgs::msg::WrenchStamped
 using WrenchStamped = geometry_msgs::msg::WrenchStamped;
 /** @} */ //
@@ -78,26 +81,26 @@ using WrenchStamped = geometry_msgs::msg::WrenchStamped;
 struct ResponseTime
 {
     u_int id;
-    int64_t time1; // Convert from header.time with : rclcpp::Time ros_time(msg.header.stamp);
-    int64_t time2;
+    uint64_t time1; // Convert from header.time with : rclcpp::Time ros_time(msg.header.stamp);
+    uint64_t time2;
     // time_t time3;
 };
 /// Struct for logging operation time between retrieving data, publishing, and controlling
 struct OperationTime
 {
-    int id;
-    int64_t sTime;
-    int64_t saveTime;
-    int64_t pubTime; // Yeaaaah pub time
-    int64_t ctrlTime;
-    int64_t endTime;
+    uint64_t id;
+    uint64_t sTime;
+    uint64_t saveTime;
+    uint64_t pubTime; // Yeaaaah pub time
+    uint64_t ctrlTime;
+    uint64_t endTime;
 };
 /// Struct for logging avg data lock time of the SharedData class
 struct LockTime
 {
     std::string data;
     std::string lockSource;
-    int64_t lockTime;
+    uint64_t lockTime;
 };
 
 /**@} */
@@ -124,11 +127,8 @@ enum S7Mode
 class SharedData
 {
 private:
-    std::mutex pose_mutex;
-    std::unique_ptr<PoseStamped> CurrentPose;
-
-    std::mutex twist_mutex;
-    std::unique_ptr<TwistStamped> CurrentTwist;
+    std::mutex odometry_mutex;
+    std::unique_ptr<Odometry> CurrentOdometry;
 
     std::mutex wrench_mutex;
     std::unique_ptr<WrenchStamped> CurrentWrench;
@@ -137,36 +137,22 @@ public:
     // Constructor
     // no need to lock, as the object isn't shared yet
     explicit SharedData()
-        : CurrentPose(std::make_unique<PoseStamped>()),
-          CurrentTwist(std::make_unique<TwistStamped>()),
+        : CurrentOdometry(std::make_unique<Odometry>()),
           CurrentWrench(std::make_unique<WrenchStamped>())
     {
     }
 
-    std::shared_ptr<PoseStamped> getCurrentPose()
+    std::shared_ptr<Odometry> getCurrentOdometry()
     {
-        std::lock_guard<std::mutex> lock_pose(pose_mutex);
-        auto tmp = std::make_shared<PoseStamped>(*CurrentPose);
+        std::lock_guard<std::mutex> lock_odometry(odometry_mutex);
+        auto tmp = std::make_shared<Odometry>(*CurrentOdometry);
         return tmp;
     }
 
-    void setCurrentPose(PoseStamped &newPose)
+    void setCurrentOdometry(Odometry &newOdometry)
     {
-        std::lock_guard<std::mutex> lock_pose(pose_mutex);
-        *CurrentPose = newPose;
-    }
-
-    std::shared_ptr<TwistStamped> getCurrentTwist()
-    {
-        std::lock_guard<std::mutex> lock_twist(twist_mutex);
-        auto tmp = std::make_shared<TwistStamped>(*CurrentTwist);
-        return tmp;
-    }
-
-    void setCurrentTwist(TwistStamped &newTwist)
-    {
-        std::lock_guard<std::mutex> lock_twist(twist_mutex);
-        *CurrentTwist = newTwist;
+        std::lock_guard<std::mutex> lock_odometry(odometry_mutex);
+        *CurrentOdometry = newOdometry;
     }
 
     std::shared_ptr<WrenchStamped> getCurrentWrench()
@@ -199,6 +185,7 @@ class CSVLogger
 public:
     CSVLogger(std::shared_ptr<SharedData> shareddata)
         : rtFile("response_time_log.csv", std::ios::out),
+          otFile("operation_time_log.csv", std::ios::out),
           SharedData_(shareddata)
     {
         if (!rtFile.is_open())
@@ -209,6 +196,15 @@ public:
         {
             rtFile << "id_number, publish_time, subscibe_time\n";
         }
+
+        if (!otFile.is_open())
+        {
+            LOG_ERROR("Failed to open file : operation_time_log");
+        }
+        else
+        {
+            otFile << "id_number, start_time, save_time, publish_time, control_time, end_time\n";
+        }
     }
 
     /**
@@ -216,11 +212,86 @@ public:
      *
      * needs to be called before a new pose check is called, to not skip messages.
      */
-    void logPose(u_int id, int64_t time)
+    void logPose(u_int id, uint64_t time)
     {
         // write to latest vector only the pose message time setting corresponding time2 to 0 untill sub message arrives
         ResponseTime R = {id, time, 0};
         rtBuffer.push_back(R);
+    }
+
+    /**
+     * @brief call to write the latest wrench to its corresponding ID in the buffer
+     */
+    void logWrench(u_int id, uint64_t time)
+    {
+        // write to correct spot in the vector
+        // doesn't check if the spot exists in the vector (ideally doesn't need to as a force recieved should always have the same ID as a pose already logged)
+        // And also I'm lazy af
+        if (id < rtBuffer.size())
+        {
+            rtBuffer[id].time2 = time;
+        }
+        else
+        {
+            LOG_ERROR("Tried to log wrench when insufficent space");
+        }
+    }
+
+    void logOT(uint64_t counter, uint8_t id)
+    {
+        // Retrieving the time in nanoseconds
+        rclcpp::Time t = rclcpp::Clock().now();
+        uint64_t time = static_cast<uint64_t>(t.nanoseconds() / 1000);
+
+        if (id == 0)
+        {
+            OperationTime ot = {counter, time, 0, 0, 0, 0};
+            otBuffer.push_back(ot);
+        }
+
+        switch (id)
+        {
+        case 1:
+            if (counter < otBuffer.size())
+            {
+                otBuffer[counter].saveTime = time;
+            }
+            else
+            {
+                LOG_ERROR("Tried to log operation with incorrect order");
+            }
+            break;
+        case 2:
+            if (counter < otBuffer.size())
+            {
+                otBuffer[counter].pubTime = time;
+            }
+            else
+            {
+                LOG_ERROR("Tried to log operation with incorrect order");
+            }
+            break;
+        case 3:
+            if (counter < otBuffer.size())
+            {
+                otBuffer[counter].ctrlTime = time;
+            }
+            else
+            {
+                LOG_ERROR("Tried to log operation with incorrect order");
+            }
+            break;
+        case 4:
+            if (counter < otBuffer.size())
+            {
+                otBuffer[counter].endTime = time;
+            }
+            else
+            {
+                LOG_ERROR("Tried to log operation with incorrect order");
+            }
+            break;
+        }
     }
 
     /**
@@ -237,24 +308,6 @@ public:
 #ifdef DEBUG_LOCK_TIME
         writeLockTime();
 #endif
-    }
-
-    /**
-     * @brief call to write the latest wrench to its corresponding ID in the buffer
-     */
-    void logWrench(u_int id, int64_t time)
-    {
-        // write to correct spot in the vector
-        // doesn't check if the spot exists in the vector (ideally doesn't need to as a force recieved should always have the same ID as a pose already logged)
-        // And also I'm lazy af
-        if (id < rtBuffer.size())
-        {
-            rtBuffer[id].time2 = time;
-        }
-        else
-        {
-            LOG_ERROR("Tried to log wrench when insufficent space");
-        }
     }
 
 private:
@@ -274,6 +327,12 @@ private:
     // todo
     void writeOperationTime()
     {
+        for (std::vector<OperationTime>::iterator it = otBuffer.begin(); it != otBuffer.end(); ++it)
+        {
+            rtFile << it->id << "," << "," << it->sTime << it->saveTime << "," << it->pubTime << "," << it->ctrlTime << "," << it->endTime << "\n";
+        }
+        rtFile.flush();
+        LOG_INFO("CSV file for operation time flushed");
     }
 
     // todo
@@ -283,7 +342,9 @@ private:
 
 private:
     std::ofstream rtFile;
+    std::ofstream otFile;
     std::vector<ResponseTime> rtBuffer;
+    std::vector<OperationTime> otBuffer;
     std::shared_ptr<SharedData> SharedData_;
 };
 
@@ -358,10 +419,10 @@ public:
 
     int savePose()
     {
-        PoseStamped savedPose;
+        Odometry savedOdometry;
         rclcpp::Time t = rclcpp::Clock().now();
-        savedPose.header.stamp = t;
-        savedPose.header.frame_id = std::to_string(frame_id_); // set frame_id
+        savedOdometry.header.stamp = t;
+        savedOdometry.header.frame_id = std::to_string(frame_id_); // set frame_id
 
         // Obtain all pose data, gets position twice to be able to retrieve velocity
         if (dhdGetPosition(NULL, NULL, NULL) == (DHD_ERROR_TIMEOUT | -1))
@@ -370,44 +431,39 @@ public:
             LOG_ERROR(dhdErrorGetLastStr());
             return -1;
         }
-        if (dhdGetOrientationRad(&savedPose.pose.orientation.x, &savedPose.pose.orientation.y, &savedPose.pose.orientation.z) == (DHD_ERROR_TIMEOUT | -1))
+        if (dhdGetOrientationRad(&savedOdometry.pose.pose.orientation.x, &savedOdometry.pose.pose.orientation.y, &savedOdometry.pose.pose.orientation.z) == (DHD_ERROR_TIMEOUT | -1))
         {
             LOG_ERROR("failed to calculate angular orientation");
             LOG_ERROR(dhdErrorGetLastStr());
             return -1;
         }
-
-        TwistStamped savedTwist;
-        savedTwist.header.stamp = t;
-        savedTwist.header.frame_id = std::to_string(frame_id_); // set frame_id
-
         // Obtain twist data
-        if (dhdGetPosition(&savedPose.pose.position.x, &savedPose.pose.position.y, &savedPose.pose.position.z) == (DHD_ERROR_TIMEOUT | -1))
+        if (dhdGetPosition(&savedOdometry.pose.pose.position.x, &savedOdometry.pose.pose.position.y, &savedOdometry.pose.pose.position.z) == (DHD_ERROR_TIMEOUT | -1))
         {
             LOG_ERROR("failed to calculate position ");
             LOG_ERROR(dhdErrorGetLastStr());
             return -1;
         }
-        if (dhdGetLinearVelocity(&savedTwist.twist.linear.x, &savedTwist.twist.linear.y, &savedTwist.twist.linear.z) == (DHD_ERROR_TIMEOUT | -1))
+        if (dhdGetLinearVelocity(&savedOdometry.twist.twist.linear.x, &savedOdometry.twist.twist.linear.y, &savedOdometry.twist.twist.linear.z) == (DHD_ERROR_TIMEOUT | -1))
         {
             LOG_ERROR("failed to calculate linear velocity");
             LOG_ERROR(dhdErrorGetLastStr());
             return -1;
         }
-        if (dhdGetAngularVelocityRad(&savedTwist.twist.angular.x, &savedTwist.twist.angular.y, &savedTwist.twist.angular.z) == (DHD_ERROR_TIMEOUT | -1))
+        if (dhdGetAngularVelocityRad(&savedOdometry.twist.twist.angular.x, &savedOdometry.twist.twist.angular.y, &savedOdometry.twist.twist.angular.z) == (DHD_ERROR_TIMEOUT | -1))
         {
             LOG_ERROR("failed to calculate angular velocity");
             LOG_ERROR(dhdErrorGetLastStr());
             return -1;
         }
 
-        SharedData_->setCurrentPose(savedPose);
-        SharedData_->setCurrentTwist(savedTwist);
+        SharedData_->setCurrentOdometry(savedOdometry);
+
 
 // Log relevant data (before publish to avoid sub messages arriving in the logs too early)
 #ifdef DEBUG_RESPONSE_TIME
         // log the pose (remember the static cast here)
-        CSVLogger_->logPose(std::abs(frame_id_), static_cast<int64_t>(t.nanoseconds() / 1000000)); // the std::abs() is to
+        CSVLogger_->logPose(std::abs(frame_id_), static_cast<uint64_t>(t.nanoseconds() / 1000)); // the std::abs() is to
 #endif
 
         // Increment frame_id
@@ -469,7 +525,6 @@ protected:
             return -1;
         }
         LOG_INFO("moving to center");
-        LOG_INFO("\n");
         if (drdMoveTo(positionCenter) < 0)
         {
             LOG_ERROR("failed to move device");
@@ -518,8 +573,7 @@ public:
         : SharedData_(sharedData),
           node_(node)
     {
-        publisher_ = node_->create_publisher<PoseStamped>("controller_pose_topic", 1);
-        publisher2_ = node_->create_publisher<TwistStamped>("controller_twist_topic", 1);
+        publisher_ = node_->create_publisher<Odometry>("controller_odomtry_topic", 10);
     }
 
     /**
@@ -531,18 +585,13 @@ public:
      */
     void publish()
     {
-        // std::shared_ptr<PoseStamped> tmpPose = std::make_shared<PoseStamped>(*SharedData_->getCurrentPose());
-        publisher_->publish(*SharedData_->getCurrentPose());
-
-        // std::shared_ptr<TwistStamped> tmpTwist = std::make_shared<TwistStamped>(*SharedData_->getCurrentTwist());
-        publisher2_->publish(*SharedData_->getCurrentTwist());
+        publisher_->publish(*SharedData_->getCurrentOdometry());
     }
 
 private:
     std::shared_ptr<SharedData> SharedData_;
     std::shared_ptr<rclcpp::Node> node_;
-    std::shared_ptr<rclcpp::Publisher<PoseStamped>> publisher_;
-    std::shared_ptr<rclcpp::Publisher<TwistStamped>> publisher2_;
+    std::shared_ptr<rclcpp::Publisher<Odometry>> publisher_;
 };
 
 /**
@@ -589,7 +638,7 @@ protected:
         int idValue = std::stoi(id);
         rclcpp::Time t(newWrench->header.stamp);
 
-        CSVLogger_->logWrench(std::abs(idValue), static_cast<int64_t>(t.nanoseconds() / 1000000));
+        CSVLogger_->logWrench(std::abs(idValue), static_cast<uint64_t>(t.nanoseconds() / 1000));
 #endif
     }
 
@@ -677,6 +726,9 @@ public:
      */
     void loop()
     {
+#ifdef DEBUG_OPERATION_TIME
+        CSVLogger_->logOT(count, 0);
+#endif
         // Timing control
         using namespace std::chrono;
         const auto period = microseconds(2000);
@@ -686,20 +738,29 @@ public:
         {
             if (initialized_)
             {
-                // save pose
+// save pose
+#ifdef DEBUG_OPERATION_TIME
+                CSVLogger_->logOT(count, 1);
+#endif
                 Controller_->savePose();
-                // publish
+// publish
+#ifdef DEBUG_OPERATION_TIME
+                CSVLogger_->logOT(count, 2);
+#endif
                 StatePublisher_->publish();
-                // control step
+// control step
+#ifdef DEBUG_OPERATION_TIME
+                CSVLogger_->logOT(count, 3);
+#endif
                 Controller_->setForce();
             }
 
-            // get usr input
+            // Input Management step
             getUserInput();
         }
+        // deal with shutdown
         else
         {
-            // deal with shutdown
             Controller_->stop();
             loop_timer_->cancel();
             CSVLogger_->flush();
@@ -711,6 +772,12 @@ public:
             }
             rclcpp::shutdown();
         }
+
+#ifdef DEBUG_OPERATION_TIME
+        // Increase counter and log end of loop
+        CSVLogger_->logOT(count, 4);
+        count++;
+#endif
 
         // Timing control
         auto elapsed = steady_clock::now() - start;
@@ -804,6 +871,7 @@ private:
     bool initialized_ = false;
     std::shared_ptr<rclcpp::Node> node_;
     std::shared_ptr<SharedData> SharedData_;
+    uint64_t count = 0;
     std::shared_ptr<CSVLogger> CSVLogger_;
     std::shared_ptr<S7Mode> CurrentMode_;
     std::unique_ptr<S7Controller> Controller_;
