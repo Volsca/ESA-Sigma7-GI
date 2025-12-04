@@ -120,8 +120,11 @@ class Spaceship(Node):
             self.state_node.latest_pose is not None
             and self.state_node.latest_twist is not None
         ):
-            if self.state_node.latest_pose.frame_id != self.old_frame_id:
-                self.old_frame_id = self.state_node.latest_pose.frame_id
+            if (
+                self.state_node.latest_pose.header.frame_id
+                != self.old_frame_id
+            ):
+                self.old_frame_id = self.state_node.latest_pose.header.frame_id
                 self.msgavailable = True
         else:
             self.msgavailable = False
