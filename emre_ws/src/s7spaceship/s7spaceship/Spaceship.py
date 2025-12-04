@@ -57,7 +57,6 @@ class Spaceship(Node):
 
         self.centering_enabled = False
         self.shutdown = False
-        self._center_timer = self.create_timer(0.002, self._maybe_center)
         self.get_logger().info("Press SPACE to toggle centering.")
         self.receivedframelist = []
         self.sentframelist = []
@@ -80,41 +79,41 @@ class Spaceship(Node):
         if self.latest_pose is None or self.latest_twist is None:
             self.get_logger().info("Not receiving anything, cant center")
             return
+        if self.centering_enabled:
+            # Positions from pose
+            px = self.latest_pose.pose.position.x
+            py = self.latest_pose.pose.position.y
+            pz = self.latest_pose.pose.position.z
 
-        # Positions from pose
-        px = self.latest_pose.pose.position.x
-        py = self.latest_pose.pose.position.y
-        pz = self.latest_pose.pose.position.z
+            da = self.latest_pose.pose.orientation.x
+            db = self.latest_pose.pose.orientation.y
+            dg = self.latest_pose.pose.orientation.z
 
-        da = self.latest_pose.pose.orientation.x
-        db = self.latest_pose.pose.orientation.y
-        dg = self.latest_pose.pose.orientation.z
+            # Linear velocities from twist
+            vx = self.latest_twist.twist.linear.x
+            vy = self.latest_twist.twist.linear.y
+            vz = self.latest_twist.twist.linear.z
 
-        # Linear velocities from twist
-        vx = self.latest_twist.twist.linear.x
-        vy = self.latest_twist.twist.linear.y
-        vz = self.latest_twist.twist.linear.z
+            va = self.latest_twist.twist.angular.x
+            vb = self.latest_twist.twist.angular.y
+            vg = self.latest_twist.twist.angular.z
 
-        va = self.latest_twist.twist.angular.x
-        vb = self.latest_twist.twist.angular.y
-        vg = self.latest_twist.twist.angular.z
+            # PD control law
+            # The 0.0s represent the center position, this can be altered to change the centering position
+            dx = self.kp * (0.0 - px) + self.kd * (0.0 - vx)
+            dy = self.kp * (0.0 - py) + self.kd * (0.0 - vy)
+            dz = self.kp * (0.0 - pz) + self.kd * (0.0 - vz)
 
-        # PD control law
-        # The 0.0s represent the center position, this can be altered to change the centering position
-        dx = self.kp * (0.0 - px) + self.kd * (0.0 - vx)
-        dy = self.kp * (0.0 - py) + self.kd * (0.0 - vy)
-        dz = self.kp * (0.0 - pz) + self.kd * (0.0 - vz)
+            ta = self.kpa * (0.0 - da) + self.kda * (0.0 - va)
+            tb = self.kpb * (0.0 - db) + self.kdb * (0.0 - vb)
+            tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg)
 
-        ta = self.kpa * (0.0 - da) + self.kda * (0.0 - va)
-        tb = self.kpb * (0.0 - db) + self.kdb * (0.0 - vb)
-        tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg)
-
-        force = dx, dy, dz, ta, tb, tg
-        self.get_logger().debug(f"Calculated force: {force}")
-        self.receivedframelist.append(self.latest_pose.header.frame_id)
-        self.sendforce(
-            *force, self.latest_pose.header.frame_id
-        )  # unpack to six positional args
+            force = dx, dy, dz, ta, tb, tg
+            self.get_logger().debug(f"Calculated force: {force}")
+            self.receivedframelist.append(self.latest_pose.header.frame_id)
+            self.sendforce(
+                *force, self.latest_pose.header.frame_id
+            )  # unpack to six positional args
 
     # ---------- Controller -> UI ----------
     def _ctrl_pose_cb(self, msg: PoseStamped):
@@ -124,10 +123,6 @@ class Spaceship(Node):
     def _ctrl_msg_cb(self, msg: String):
         msg.data = self.intmsg_node.latest_msg
         self.get_logger().debug(f"Received controller message: {msg.data}")
-
-    def _maybe_center(self):
-        if self.centering_enabled:
-            self.centering()
 
 
 # TODO Test with S7 to see if its receiving
@@ -298,6 +293,35 @@ def KeyInput(spaceship):
                     "Quit command received, shutting down..."
                 )
                 spaceship.centering_enabled = False
+                print("Shutting down spaceship bridge...")
+                # Save framelist to CSV
+                try:
+                    with open("framelist.csv", "w", newline="") as f:
+                        writer = csv.writer(f)
+                        writer.writerow(["Received Frames", "Sent Frames"])
+                        max_len = max(
+                            len(spaceship.receivedframelist),
+                            len(spaceship.sentframelist),
+                        )
+                        for i in range(max_len):
+                            received = (
+                                spaceship.receivedframelist[i]
+                                if i < len(spaceship.receivedframelist)
+                                else ""
+                            )
+                            sent = (
+                                spaceship.sentframelist[i]
+                                if i < len(spaceship.sentframelist)
+                                else ""
+                            )
+                            writer.writerow([received, sent])
+                        spaceship.get_logger().info(
+                            f"Saved {len(spaceship.sentframelist)} sent and {len(spaceship.receivedframelist)} received frames to framelist.csv"
+                        )
+                except Exception as e:
+                    spaceship.get_logger().error(
+                        f"Failed to save framelist: {e}"
+                    )
                 spaceship.shutdown = True
                 time.sleep(1)  # let KeyInput loop exit + restore TTY
                 try:
