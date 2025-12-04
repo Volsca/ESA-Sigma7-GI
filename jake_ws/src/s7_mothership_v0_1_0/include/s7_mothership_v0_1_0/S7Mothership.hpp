@@ -332,19 +332,20 @@ public:
             break;
 
         case FORCEFEEDBACK:
-            // TODO
             auto tmpWrench = std::make_shared<WrenchStamped>(*SharedData_->getCurrentWrench());
 
-            // Unnecessary copy, rewrite TODO
+            // Rewrite into extra filtering
+            /*// Unnecessary copy, rewrite TODO
             double fx = (*tmpWrench).wrench.force.x;
             double fy = (*tmpWrench).wrench.force.y;
             double fz = (*tmpWrench).wrench.force.z;
 
             double tx = (*tmpWrench).wrench.torque.x;
             double ty = (*tmpWrench).wrench.torque.y;
-            double tz = (*tmpWrench).wrench.torque.z;
+            double tz = (*tmpWrench).wrench.torque.z;*/
 
-            if (dhdSetForceAndTorqueAndGripperForce(fx, fy, fz, tx, ty, tz, 1) == (DHD_MOTOR_SATURATED | -1))
+            if (dhdSetForceAndTorqueAndGripperForce((*tmpWrench).wrench.force.x, (*tmpWrench).wrench.force.y, (*tmpWrench).wrench.force.z,
+                                                    (*tmpWrench).wrench.torque.x, (*tmpWrench).wrench.torque.y, (*tmpWrench).wrench.torque.z, 1) == (DHD_MOTOR_SATURATED | -1))
             {
                 LOG_ERROR("Motor saturated/unable to set force");
                 return -1;
@@ -363,15 +364,9 @@ public:
         savedPose.header.frame_id = std::to_string(frame_id_); // set frame_id
 
         // Obtain all pose data, gets position twice to be able to retrieve velocity
-        if (dhdGetPosition(&savedPose.pose.position.x, &savedPose.pose.position.y, &savedPose.pose.position.z) == (DHD_ERROR_TIMEOUT | -1))
+        if (dhdGetPosition(NULL, NULL, NULL) == (DHD_ERROR_TIMEOUT | -1))
         {
             LOG_ERROR("failed to calculate position");
-            LOG_ERROR(dhdErrorGetLastStr());
-            return -1;
-        }
-        if (dhdGetPosition(&savedPose.pose.position.x, &savedPose.pose.position.y, &savedPose.pose.position.z) == (DHD_ERROR_TIMEOUT | -1))
-        {
-            LOG_ERROR("failed to calculate position ");
             LOG_ERROR(dhdErrorGetLastStr());
             return -1;
         }
@@ -387,6 +382,12 @@ public:
         savedTwist.header.frame_id = std::to_string(frame_id_); // set frame_id
 
         // Obtain twist data
+        if (dhdGetPosition(&savedPose.pose.position.x, &savedPose.pose.position.y, &savedPose.pose.position.z) == (DHD_ERROR_TIMEOUT | -1))
+        {
+            LOG_ERROR("failed to calculate position ");
+            LOG_ERROR(dhdErrorGetLastStr());
+            return -1;
+        }
         if (dhdGetLinearVelocity(&savedTwist.twist.linear.x, &savedTwist.twist.linear.y, &savedTwist.twist.linear.z) == (DHD_ERROR_TIMEOUT | -1))
         {
             LOG_ERROR("failed to calculate linear velocity");
@@ -530,27 +531,12 @@ public:
      */
     void publish()
     {
-        std::shared_ptr<PoseStamped> tmpPose = std::make_shared<PoseStamped>(*SharedData_->getCurrentPose());
-        publisher_->publish(*tmpPose);
+        // std::shared_ptr<PoseStamped> tmpPose = std::make_shared<PoseStamped>(*SharedData_->getCurrentPose());
+        publisher_->publish(*SharedData_->getCurrentPose());
 
-        std::shared_ptr<TwistStamped> tmpTwist = std::make_shared<TwistStamped>(*SharedData_->getCurrentTwist());
-        publisher2_->publish(*tmpTwist);
-
-        // debugPublish(tmpPose); //, tmpTwist);
+        // std::shared_ptr<TwistStamped> tmpTwist = std::make_shared<TwistStamped>(*SharedData_->getCurrentTwist());
+        publisher2_->publish(*SharedData_->getCurrentTwist());
     }
-
-    // TODO add twist
-    /*void debugPublish(std::shared_ptr<PoseStamped> t1) //, std::shared_ptr<TwistStamped> t2)
-    {
-        LOG_INFO("publishing pos : ");
-        LOG_INFO((*t1).pose.position.x);
-        LOG_INFO((*t1).pose.position.y);
-        LOG_INFO((*t1).pose.position.z);
-        LOG_INFO("publishing rot : ");
-        LOG_INFO((*t1).pose.orientation.x);
-        LOG_INFO((*t1).pose.orientation.y);
-        LOG_INFO((*t1).pose.orientation.z);
-    }*/
 
 private:
     std::shared_ptr<SharedData> SharedData_;
@@ -619,11 +605,11 @@ private:
  */
 class S7InterfaceControlPublisher
 {
-private:
-    rclcpp::Node::SharedPtr node_ = nullptr;
-
 public:
     S7InterfaceControlPublisher(const rclcpp::Node::SharedPtr &node) { node_ = node; }
+
+private:
+    rclcpp::Node::SharedPtr node_ = nullptr;
 };
 
 /**
@@ -631,11 +617,11 @@ public:
  */
 class S7InterfaceControlsubscriber
 {
-private:
-    rclcpp::Node::SharedPtr node_ = nullptr;
-
 public:
     S7InterfaceControlsubscriber(const rclcpp::Node::SharedPtr &node) { node_ = node; }
+
+private:
+    rclcpp::Node::SharedPtr node_ = nullptr;
 };
 
 #pragma endregion
@@ -748,6 +734,7 @@ public:
             {
             case 'q':
             {
+                std::cout << "\n";
                 running_ = false;
                 RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "Exit called");
                 break;
@@ -769,6 +756,7 @@ public:
                 break;
             }
             }
+            std::cout << "\n";
         }
     }
 
@@ -797,18 +785,18 @@ public:
 private:
     void showStartupScreen()
     {
-        LOG_INFO("Sigma-7 interface mothership, written by Jacob Wallace & Emre Artar - 2025");
-        LOG_INFO("______________________________________________________________________________________________________");
-        LOG_INFO("'##::::'##::'#######::'########:'##::::'##:'########:'########:::'######::'##::::'##:'####:'########::");
-        LOG_INFO(" ###::'###:'##.... ##:... ##..:: ##:::: ##: ##.....:: ##.... ##:'##... ##: ##:::: ##:. ##:: ##.... ##:");
-        LOG_INFO(" ####'####: ##:::: ##:::: ##:::: ##:::: ##: ##::::::: ##:::: ##: ##:::..:: ##:::: ##:: ##:: ##:::: ##:");
-        LOG_INFO(" ## ### ##: ##:::: ##:::: ##:::: #########: ######::: ########::. ######:: #########:: ##:: ########::");
-        LOG_INFO(" ##. #: ##: ##:::: ##:::: ##:::: ##.... ##: ##...:::: ##.. ##::::..... ##: ##.... ##:: ##:: ##.....:::");
-        LOG_INFO(" ##:.:: ##: ##:::: ##:::: ##:::: ##:::: ##: ##::::::: ##::. ##::'##::: ##: ##:::: ##:: ##:: ##::::::::");
-        LOG_INFO(" ##:::: ##:. #######::::: ##:::: ##:::: ##: ########: ##:::. ##:. ######:: ##:::: ##:'####: ##::::::::");
-        LOG_INFO("..:::::..:::.......::::::..:::::..:::::..::........::..:::::..:::......:::..:::::..::....::..:::::::::");
-        LOG_INFO("______________________________________________________________________________________________________\n");
-        LOG_INFO("Wait for program initialisation and Sigma-7 calibration before interacting with Sigma-7.");
+        std::cout << "Sigma-7 interface mothership, written by Jacob Wallace & Emre Artar - 2025\n";
+        std::cout << "      ______________________________________________________________________________________________________\n";
+        std::cout << "      '##::::'##::'#######::'########:'##::::'##:'########:'########:::'######::'##::::'##:'####:'########::\n";
+        std::cout << "       ###::'###:'##.... ##:... ##..:: ##:::: ##: ##.....:: ##.... ##:'##... ##: ##:::: ##:. ##:: ##.... ##:\n";
+        std::cout << "       ####'####: ##:::: ##:::: ##:::: ##:::: ##: ##::::::: ##:::: ##: ##:::..:: ##:::: ##:: ##:: ##:::: ##:\n";
+        std::cout << "       ## ### ##: ##:::: ##:::: ##:::: #########: ######::: ########::. ######:: #########:: ##:: ########::\n";
+        std::cout << "       ##. #: ##: ##:::: ##:::: ##:::: ##.... ##: ##...:::: ##.. ##::::..... ##: ##.... ##:: ##:: ##.....:::\n";
+        std::cout << "       ##:.:: ##: ##:::: ##:::: ##:::: ##:::: ##: ##::::::: ##::. ##::'##::: ##: ##:::: ##:: ##:: ##::::::::\n";
+        std::cout << "       ##:::: ##:. #######::::: ##:::: ##:::: ##: ########: ##:::. ##:. ######:: ##:::: ##:'####: ##::::::::\n";
+        std::cout << "      ..:::::..:::.......::::::..:::::..:::::..::........::..:::::..:::......:::..:::::..::....::..:::::::::\n";
+        std::cout << "      ______________________________________________________________________________________________________\n\n";
+        std::cout << "Wait for program initialisation and Sigma-7 calibration before interacting with Sigma-7.\n\n";
     }
 
 private:
