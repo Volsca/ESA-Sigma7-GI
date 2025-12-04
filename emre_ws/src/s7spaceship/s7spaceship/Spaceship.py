@@ -346,6 +346,7 @@ def main():
         try:
             with open("framelist.csv", "w", newline="") as f:
                 writer = csv.writer(f)
+<<<<<<< HEAD
                 writer.writerow(
                     ["Received Frames"] + spaceship.receivedframelist
                 )
@@ -353,6 +354,16 @@ def main():
                 spaceship.get_logger().info(
                     f"Saved {len(spaceship.sentframelist)} sent and {len(spaceship.receivedframelist)} received frames to framelist.csv"
                 )
+=======
+                writer.writerows([["Received Frames"], ["Sent Frames"]])
+                for frame in spaceship.sentframelist:
+                    writer.writerow([frame])
+                for frame in spaceship.receivedframelist:
+                    writer.writerow([frame])
+            spaceship.get_logger().info(
+                f"Saved {len(spaceship.sentframelist)} frames to framelist.csv"
+            )
+>>>>>>> 9532d0c (Saving both received and sent fram lists to)
         except Exception as e:
             spaceship.get_logger().error(f"Failed to save framelist: {e}")
 
