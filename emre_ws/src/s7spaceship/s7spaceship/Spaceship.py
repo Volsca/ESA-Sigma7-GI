@@ -129,17 +129,6 @@ class Spaceship(Node):
         else:
             self.msgavailable = False
 
-    def _check_msg_available(self):
-        if (
-            self.state_node.latest_pose is not None
-            and self.state_node.latest_twist is not None
-        ):
-            if self.state_node.latest_pose.frame_id != self.old_frame_id:
-                self.old_frame_id = self.state_node.latest_pose.frame_id
-                self.msgavailable = True
-        else:
-            self.msgavailable = False
-
     # ---------- Controller -> UI ----------
     def _ctrl_pose_cb(self, msg: PoseStamped):
         msg.pose = self.state_node.latest_pose
