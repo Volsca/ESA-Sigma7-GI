@@ -60,6 +60,9 @@ class Spaceship(Node):
         self.get_logger().info("Press SPACE to toggle centering.")
         self.receivedframelist = []
         self.sentframelist = []
+        self.msgavailable = False
+        self.old_frame_id = None
+        self.create_timer(0.001, self._check_msg_available)
 
     # ---------- UI -> Controller ----------
     def sendinstr(self, msg: String):
@@ -76,44 +79,52 @@ class Spaceship(Node):
     def centering(self):
         self.latest_pose = self.state_node.latest_pose
         self.latest_twist = self.state_node.latest_twist
-        if self.latest_pose is None or self.latest_twist is None:
-            self.get_logger().info("Not receiving anything, cant center")
-            return
-        if self.centering_enabled:
-            # Positions from pose
-            px = self.latest_pose.pose.position.x
-            py = self.latest_pose.pose.position.y
-            pz = self.latest_pose.pose.position.z
 
-            da = self.latest_pose.pose.orientation.x
-            db = self.latest_pose.pose.orientation.y
-            dg = self.latest_pose.pose.orientation.z
+        # Positions from pose
+        px = self.latest_pose.pose.position.x
+        py = self.latest_pose.pose.position.y
+        pz = self.latest_pose.pose.position.z
 
-            # Linear velocities from twist
-            vx = self.latest_twist.twist.linear.x
-            vy = self.latest_twist.twist.linear.y
-            vz = self.latest_twist.twist.linear.z
+        da = self.latest_pose.pose.orientation.x
+        db = self.latest_pose.pose.orientation.y
+        dg = self.latest_pose.pose.orientation.z
 
-            va = self.latest_twist.twist.angular.x
-            vb = self.latest_twist.twist.angular.y
-            vg = self.latest_twist.twist.angular.z
+        # Linear velocities from twist
+        vx = self.latest_twist.twist.linear.x
+        vy = self.latest_twist.twist.linear.y
+        vz = self.latest_twist.twist.linear.z
 
-            # PD control law
-            # The 0.0s represent the center position, this can be altered to change the centering position
-            dx = self.kp * (0.0 - px) + self.kd * (0.0 - vx)
-            dy = self.kp * (0.0 - py) + self.kd * (0.0 - vy)
-            dz = self.kp * (0.0 - pz) + self.kd * (0.0 - vz)
+        va = self.latest_twist.twist.angular.x
+        vb = self.latest_twist.twist.angular.y
+        vg = self.latest_twist.twist.angular.z
 
-            ta = self.kpa * (0.0 - da) + self.kda * (0.0 - va)
-            tb = self.kpb * (0.0 - db) + self.kdb * (0.0 - vb)
-            tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg)
+        # PD control law
+        # The 0.0s represent the center position, this can be altered to change the centering position
+        dx = self.kp * (0.0 - px) + self.kd * (0.0 - vx)
+        dy = self.kp * (0.0 - py) + self.kd * (0.0 - vy)
+        dz = self.kp * (0.0 - pz) + self.kd * (0.0 - vz)
 
-            force = dx, dy, dz, ta, tb, tg
-            self.get_logger().debug(f"Calculated force: {force}")
-            self.receivedframelist.append(self.latest_pose.header.frame_id)
-            self.sendforce(
-                *force, self.latest_pose.header.frame_id
-            )  # unpack to six positional args
+        ta = self.kpa * (0.0 - da) + self.kda * (0.0 - va)
+        tb = self.kpb * (0.0 - db) + self.kdb * (0.0 - vb)
+        tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg)
+
+        force = dx, dy, dz, ta, tb, tg
+        self.get_logger().debug(f"Calculated force: {force}")
+        self.receivedframelist.append(self.latest_pose.header.frame_id)
+        self.sendforce(
+            *force, self.latest_pose.header.frame_id
+        )  # unpack to six positional args
+
+    def _check_msg_available(self):
+        if (
+            self.state_node.latest_pose is not None
+            and self.state_node.latest_twist is not None
+        ):
+            if self.state_node.latest_pose.frame_id != self.old_frame_id:
+                self.old_frame_id = self.state_node.latest_pose.frame_id
+                self.msgavailable = True
+        else:
+            self.msgavailable = False
 
     # ---------- Controller -> UI ----------
     def _ctrl_pose_cb(self, msg: PoseStamped):
@@ -288,6 +299,8 @@ def KeyInput(spaceship):
                 spaceship.get_logger().info(
                     f"Centering {'ENABLED' if spaceship.centering_enabled else 'DISABLED'} (space)."
                 )
+                if spaceship.centering_enabled and spaceship.msgavailable:
+                    spaceship.centering()
             if ch == "q":
                 spaceship.get_logger().info(
                     "Quit command received, shutting down..."
