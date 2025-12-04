@@ -13,6 +13,7 @@ from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import WrenchStamped
 from geometry_msgs.msg import TwistStamped
+import csv
 
 
 class Spaceship(Node):
@@ -58,6 +59,7 @@ class Spaceship(Node):
         self.shutdown = False
         self._center_timer = self.create_timer(0.002, self._maybe_center)
         self.get_logger().info("Press SPACE to toggle centering.")
+        self.framelist = []
 
     # ---------- UI -> Controller ----------
     def sendinstr(self, msg: String):
@@ -190,6 +192,7 @@ class ForcePub:
             self.node.get_logger().info(
                 f"Published wrench message with message id: {msg.header.frame_id}"
             )
+            self.node.framelist.append(msg.header.frame_id)
 
 
 # TODO Test with S7 to see if this is receiving
@@ -294,7 +297,7 @@ def KeyInput(spaceship):
                 )
                 spaceship.centering_enabled = False
                 spaceship.shutdown = True
-                time.sleep(0.5)  # let KeyInput loop exit + restore TTY
+                time.sleep(1)  # let KeyInput loop exit + restore TTY
                 try:
                     spaceship.destroy_node()
                 except Exception:
@@ -337,9 +340,22 @@ def main():
     except KeyboardInterrupt:
         spaceship.centering_enabled = False
         print("Shutting down spaceship bridge...")
+        # Save framelist to CSV
+        try:
+            with open("framelist.csv", "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["frame_id"])
+                for frame in spaceship.framelist:
+                    writer.writerow([frame])
+            spaceship.get_logger().info(
+                f"Saved {len(spaceship.framelist)} frames to framelist.csv"
+            )
+        except Exception as e:
+            spaceship.get_logger().error(f"Failed to save framelist: {e}")
+
         spaceship.shutdown = True
 
-        time.sleep(0.5)
+        time.sleep(1)
     finally:
         time.sleep(0.5)  # let KeyInput loop exit + restore TTY
         try:
