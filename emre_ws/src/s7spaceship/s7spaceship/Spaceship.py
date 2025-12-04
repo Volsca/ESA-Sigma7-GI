@@ -12,7 +12,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import WrenchStamped
-from geometry_msgs.msg import TwistStamped
+from nav_msgs.msg import Odometry
 import csv
 
 
@@ -56,13 +56,12 @@ class Spaceship(Node):
         self.kdg = 0.06"""
 
         self.centering_enabled = False
+        self.mode = "Centering"
         self.shutdown = False
         self.get_logger().info("Press SPACE to toggle centering.")
         self.receivedframelist = []
         self.sentframelist = []
-        self.msgavailable = False
-        self.old_frame_id = None
-        self.create_timer(0.001, self._check_msg_available)
+        self.create_timer(0.001, self.sigmamode)  # 1000 Hz
 
     # ---------- UI -> Controller ----------
     def sendinstr(self, msg: String):
@@ -77,57 +76,52 @@ class Spaceship(Node):
         self.force_node.set_forces(fx, fy, fz, tx, ty, tz, frame_id)
 
     def centering(self):
-        self.latest_pose = self.state_node.latest_pose
-        self.latest_twist = self.state_node.latest_twist
+        if self.centering_enabled and self.state_node.latest_odo is not None:
+            self.latest_odo = self.state_node.latest_odo
+            # Positions from pose
+            px = self.latest_odo.pose.pose.position.x
+            py = self.latest_odo.pose.pose.position.y
+            pz = self.latest_odo.pose.pose.position.z
 
-        # Positions from pose
-        px = self.latest_pose.pose.position.x
-        py = self.latest_pose.pose.position.y
-        pz = self.latest_pose.pose.position.z
+            da = self.latest_odo.pose.pose.orientation.x
+            db = self.latest_odo.pose.pose.orientation.y
+            dg = self.latest_odo.pose.pose.orientation.z
 
-        da = self.latest_pose.pose.orientation.x
-        db = self.latest_pose.pose.orientation.y
-        dg = self.latest_pose.pose.orientation.z
+            # Linear velocities from twist
+            vx = self.latest_odo.twist.twist.linear.x
+            vy = self.latest_odo.twist.twist.linear.y
+            vz = self.latest_odo.twist.twist.linear.z
 
-        # Linear velocities from twist
-        vx = self.latest_twist.twist.linear.x
-        vy = self.latest_twist.twist.linear.y
-        vz = self.latest_twist.twist.linear.z
+            va = self.latest_odo.twist.twist.angular.x
+            vb = self.latest_odo.twist.twist.angular.y
+            vg = self.latest_odo.twist.twist.angular.z
 
-        va = self.latest_twist.twist.angular.x
-        vb = self.latest_twist.twist.angular.y
-        vg = self.latest_twist.twist.angular.z
+            # PD control law
+            # The 0.0s represent the center position, this can be altered to change the centering position
+            dx = self.kp * (0.0 - px) + self.kd * (0.0 - vx)
+            dy = self.kp * (0.0 - py) + self.kd * (0.0 - vy)
+            dz = self.kp * (0.0 - pz) + self.kd * (0.0 - vz)
 
-        # PD control law
-        # The 0.0s represent the center position, this can be altered to change the centering position
-        dx = self.kp * (0.0 - px) + self.kd * (0.0 - vx)
-        dy = self.kp * (0.0 - py) + self.kd * (0.0 - vy)
-        dz = self.kp * (0.0 - pz) + self.kd * (0.0 - vz)
+            ta = self.kpa * (0.0 - da) + self.kda * (0.0 - va)
+            tb = self.kpb * (0.0 - db) + self.kdb * (0.0 - vb)
+            tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg)
 
-        ta = self.kpa * (0.0 - da) + self.kda * (0.0 - va)
-        tb = self.kpb * (0.0 - db) + self.kdb * (0.0 - vb)
-        tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg)
-
-        force = dx, dy, dz, ta, tb, tg
-        self.get_logger().debug(f"Calculated force: {force}")
-        self.receivedframelist.append(self.latest_pose.header.frame_id)
-        self.sendforce(
-            *force, self.latest_pose.header.frame_id
-        )  # unpack to six positional args
-
-    def _check_msg_available(self):
-        if (
-            self.state_node.latest_pose is not None
-            and self.state_node.latest_twist is not None
-        ):
-            if (
-                self.state_node.latest_pose.header.frame_id
-                != self.old_frame_id
-            ):
-                self.old_frame_id = self.state_node.latest_pose.header.frame_id
-                self.msgavailable = True
+            force = dx, dy, dz, ta, tb, tg
+            self.get_logger().debug(f"Calculated force: {force}")
+            self.receivedframelist.append(self.latest_odo.header.frame_id)
+            self.sendforce(
+                *force, self.latest_odo.header.frame_id
+            )  # unpack to six positional args
         else:
-            self.msgavailable = False
+            # If centering is disabled, send zero forces
+            self.get_logger().debug(
+                "Centering disabled or not received odometry."
+            )
+            return
+
+    def sigmamode(self, mode=None):
+        if self.mode == "Centering":
+            self.centering()
 
     # ---------- Controller -> UI ----------
     def _ctrl_pose_cb(self, msg: PoseStamped):
@@ -215,23 +209,13 @@ class StateSub:
         # 'controller_pose_topic' is the topic name
         # 'self.pose_callback' is the function to call when a new message is received
         self.subscription_pose = self.node.create_subscription(
-            PoseStamped, "controller_pose_topic", self.pose_callback, 10
+            Odometry, "controller_odometry_topic", self.pose_callback, 10
         )
-        self.subscription_twist = self.node.create_subscription(
-            TwistStamped, "controller_twist_topic", self.twist_callback, 10
-        )
-        self.latest_pose = None
-        self.latest_twist = None
-
-    def twist_callback(self, msg):
-        self.latest_twist = msg
-        self.node.get_logger().debug(
-            f"Received Twist @ {msg.header.stamp.sec}.{msg.header.stamp.nanosec}"
-        )
+        self.latest_odo = None
 
     def pose_callback(self, msg):
         # This function is called whenever a new message is received on the "controller_pose_topic"
-        self.latest_pose = msg
+        self.latest_odo = msg
         self.node.get_logger().debug(
             f"Received Pose @ {msg.header.stamp.sec}.{msg.header.stamp.nanosec}"
         )
@@ -302,8 +286,6 @@ def KeyInput(spaceship):
                 spaceship.get_logger().info(
                     f"Centering {'ENABLED' if spaceship.centering_enabled else 'DISABLED'} (space)."
                 )
-                if spaceship.centering_enabled and spaceship.msgavailable:
-                    spaceship.centering()
             if ch == "q":
                 spaceship.get_logger().info(
                     "Quit command received, shutting down..."
