@@ -33,8 +33,8 @@ class Spaceship(Node):
 
         self.get_logger().info("Spaceship bridge online...\n")
 
-        # Latest received messages
-
+        # Sorry Emre, I'm setting up a PI control system instead of the PD.
+        """
         # Control gains
         self.kp = 0  # low to start, will increase depending on
         self.kd = 0
@@ -46,14 +46,22 @@ class Spaceship(Node):
         self.kpb = 0
         self.kdb = 0
         self.kpg = 0
-        self.kdg = 0
-
+        self.kdg = 0"""
         """self.kpa = 1.2
         self.kda = 0.1
         self.kpb = 0.55
         self.kdb = 0.14
         self.kpg = 0.3
         self.kdg = 0.06"""
+
+        # ---------- Control Parameters ----------
+        # (no kd, as derivative amplifies delay instability)
+        # Will need to implement anti windup for integral term later
+        self.kp = 0.0  # Proportional gain
+        self.ki = 0.0  # Integral gain
+        self.integral_x = 0.0
+        self.integral_y = 0.0
+        self.integral_z = 0.0
 
         self.centering_enabled = False
         self.mode = "Centering"
@@ -68,7 +76,7 @@ class Spaceship(Node):
         # Forward via your InstructionPub's publisher_
         try:
             self.instr_node.sendInstruction(msg)
-            self.get_logger().info(f"Forwarded UI instruction: {msg.data}")
+            # self.get_logger().info(f"Forwarded UI instruction: {msg.data}")
         except Exception as e:
             self.get_logger().error(f"Failed to forward instruction: {e}")
 
@@ -78,8 +86,8 @@ class Spaceship(Node):
     def centering(self):
         if self.centering_enabled and self.state_node.latest_odo is not None:
             self.latest_odo = self.state_node.latest_odo
-            # Positions from pose
-            px = self.latest_odo.pose.pose.position.x
+            # Commented out to test PI control
+            """ px = self.latest_odo.pose.pose.position.x
             py = self.latest_odo.pose.pose.position.y
             pz = self.latest_odo.pose.pose.position.z
 
@@ -104,7 +112,31 @@ class Spaceship(Node):
 
             ta = self.kpa * (0.0 - da) + self.kda * (0.0 - va)
             tb = self.kpb * (0.0 - db) + self.kdb * (0.0 - vb)
-            tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg)
+            tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg) """
+
+            # ---------- Linear Control ----------
+            centering_position = 0.0  # placeholder for custom centering spring
+            px = self.latest_odo.pose.pose.position.x
+            py = self.latest_odo.pose.pose.position.y
+            pz = self.latest_odo.pose.pose.position.z
+
+            dx = (
+                self.kp * (centering_position - px) + self.ki * self.integral_x
+            )
+            dy = (
+                self.kp * (centering_position - py) + self.ki * self.integral_y
+            )
+            dz = (
+                self.kp * (centering_position - pz) + self.ki * self.integral_z
+            )
+
+            ta = tb = tg = 0.0  # No angular control for now
+
+            # update integral terms
+            # dt = 0.002s because 500Hz
+            self.integral_x += (centering_position - px) * 0.002
+            self.integral_y += (centering_position - py) * 0.002
+            self.integral_z += (centering_position - pz) * 0.002
 
             force = dx, dy, dz, ta, tb, tg
             self.get_logger().debug(f"Calculated force: {force}")
@@ -113,7 +145,7 @@ class Spaceship(Node):
                 *force, self.latest_odo.header.frame_id
             )  # unpack to six positional args
         else:
-            # If centering is disabled, send zero forces
+            # If centering is disabled, send nothing
             self.get_logger().debug(
                 "Centering disabled or not received odometry."
             )
@@ -126,11 +158,11 @@ class Spaceship(Node):
     # ---------- Controller -> UI ----------
     def _ctrl_pose_cb(self, msg: PoseStamped):
         msg.pose = self.state_node.latest_pose
-        self.get_logger().debug(f"Received controller pose: {msg.pose}")
+        # self.get_logger().debug(f"Received controller pose: {msg.pose}")
 
     def _ctrl_msg_cb(self, msg: String):
         msg.data = self.intmsg_node.latest_msg
-        self.get_logger().debug(f"Received controller message: {msg.data}")
+        # self.get_logger().debug(f"Received controller message: {msg.data}")
 
 
 # TODO Test with S7 to see if its receiving
