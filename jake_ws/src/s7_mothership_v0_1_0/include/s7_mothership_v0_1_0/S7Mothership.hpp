@@ -285,7 +285,7 @@ private:
     {
         for (std::vector<OperationTime>::iterator it = otBuffer.begin(); it != otBuffer.end(); ++it)
         {
-            otFile << it->id << "," << it->startTime.count() << "," << it->saveTime.count() << "," << it->pubTime.count() << "," << it->ctrlTime.count() << "," << it->endTime.count() << "\n";
+            otFile << it->id << "," << it->startTime.count() << "," << it->saveTime.count() << "," << it->pubTime.count() << "," << it->ctrlTime.count() << "," << it->endTime.count() << "," << it->late << "\n";
         }
         otFile.flush();
         LOG_INFO("CSV file for operation time flushed");
