@@ -88,12 +88,18 @@ struct ResponseTime
 /// Struct for logging operation time between retrieving data, publishing, and controlling
 struct OperationTime
 {
-    uint64_t id;
-    uint64_t sTime;
-    uint64_t saveTime;
-    uint64_t pubTime; // Yeaaaah pub time
-    uint64_t ctrlTime;
-    uint64_t endTime;
+    uint16_t id;
+    std::chrono::microseconds startTime;
+    std::chrono::microseconds saveTime;
+    std::chrono::microseconds pubTime;
+    std::chrono::microseconds ctrlTime;
+    std::chrono::microseconds endTime;
+    /*int64_t startTime;
+    int64_t saveTime;
+    int64_t pubTime;
+    int64_t ctrlTime;
+    int64_t endTime;*/
+    std::string late;
 };
 /// Struct for logging avg data lock time of the SharedData class
 struct LockTime
@@ -203,7 +209,7 @@ public:
         }
         else
         {
-            otFile << "id_number, start_time, save_time, publish_time, control_time, end_time\n";
+            otFile << "id_number, start_time, save_time, publish_time, control_time, end_time, status\n";
         }
     }
 
@@ -237,61 +243,11 @@ public:
         }
     }
 
-    void logOT(uint64_t counter, uint8_t id)
+    // TODO, rework logic
+    void logOT(uint16_t &counter, std::chrono::microseconds &t1, std::chrono::microseconds &t2, std::chrono::microseconds &t3, std::chrono::microseconds &t4, std::chrono::microseconds &t5, std::string &l8)
     {
-        // Retrieving the time in nanoseconds
-        rclcpp::Time t = rclcpp::Clock().now();
-        uint64_t time = static_cast<uint64_t>(t.nanoseconds() / 1000);
-
-        if (id == 0)
-        {
-            OperationTime ot = {counter, time, 0, 0, 0, 0};
-            otBuffer.push_back(ot);
-        }
-
-        switch (id)
-        {
-        case 1:
-            if (counter < otBuffer.size())
-            {
-                otBuffer[counter].saveTime = time;
-            }
-            else
-            {
-                LOG_ERROR("Tried to log operation with incorrect order");
-            }
-            break;
-        case 2:
-            if (counter < otBuffer.size())
-            {
-                otBuffer[counter].pubTime = time;
-            }
-            else
-            {
-                LOG_ERROR("Tried to log operation with incorrect order");
-            }
-            break;
-        case 3:
-            if (counter < otBuffer.size())
-            {
-                otBuffer[counter].ctrlTime = time;
-            }
-            else
-            {
-                LOG_ERROR("Tried to log operation with incorrect order");
-            }
-            break;
-        case 4:
-            if (counter < otBuffer.size())
-            {
-                otBuffer[counter].endTime = time;
-            }
-            else
-            {
-                LOG_ERROR("Tried to log operation with incorrect order");
-            }
-            break;
-        }
+        OperationTime ot = {counter, t1, t2, t3, t4, t5, l8};
+        otBuffer.push_back(ot);
     }
 
     /**
@@ -329,9 +285,9 @@ private:
     {
         for (std::vector<OperationTime>::iterator it = otBuffer.begin(); it != otBuffer.end(); ++it)
         {
-            rtFile << it->id << "," << "," << it->sTime << it->saveTime << "," << it->pubTime << "," << it->ctrlTime << "," << it->endTime << "\n";
+            otFile << it->id << "," << it->startTime.count() << "," << it->saveTime.count() << "," << it->pubTime.count() << "," << it->ctrlTime.count() << "," << it->endTime.count() << "\n";
         }
-        rtFile.flush();
+        otFile.flush();
         LOG_INFO("CSV file for operation time flushed");
     }
 
@@ -458,7 +414,6 @@ public:
         }
 
         SharedData_->setCurrentOdometry(savedOdometry);
-
 
 // Log relevant data (before publish to avoid sub messages arriving in the logs too early)
 #ifdef DEBUG_RESPONSE_TIME
@@ -726,37 +681,88 @@ public:
      */
     void loop()
     {
-#ifdef DEBUG_OPERATION_TIME
-        CSVLogger_->logOT(count, 0);
-#endif
-        // Timing control
-        using namespace std::chrono;
-        const auto period = microseconds(2000);
-        auto start = steady_clock::now();
-
         if (running_)
         {
+#ifdef DEBUG_OPERATION_TIME // -------- Debug procedure
+
+            // Timing control & timing
+            using namespace std::chrono;
+            const auto period = microseconds(2000);
+            bool l8 = false;
+            auto start = steady_clock::now();
+            microseconds startTime = duration_cast<microseconds>(steady_clock::now().time_since_epoch());
+            microseconds saveTime;
+            microseconds pubTime;
+            microseconds ctrlTime;
+            microseconds endTime;
+
             if (initialized_)
             {
-// save pose
-#ifdef DEBUG_OPERATION_TIME
-                CSVLogger_->logOT(count, 1);
-#endif
+                saveTime = duration_cast<microseconds>(steady_clock::now().time_since_epoch());
                 Controller_->savePose();
-// publish
-#ifdef DEBUG_OPERATION_TIME
-                CSVLogger_->logOT(count, 2);
-#endif
+
+                pubTime = duration_cast<microseconds>(steady_clock::now().time_since_epoch());
                 StatePublisher_->publish();
-// control step
-#ifdef DEBUG_OPERATION_TIME
-                CSVLogger_->logOT(count, 3);
-#endif
+
+                ctrlTime = duration_cast<microseconds>(steady_clock::now().time_since_epoch());
                 Controller_->setForce();
             }
 
             // Input Management step
             getUserInput();
+
+            // Timing control
+            auto elapsed = steady_clock::now() - start;
+            if (!(elapsed < period))
+            {
+                // auto overrun = duration_cast<microseconds>(elapsed - period).count();
+                LOG_WARN("control thread late");
+                l8 = true;
+            }
+
+            // Increase counter and log end of loop
+            // Only log if initialized, otherwise makes no sense.
+            endTime = duration_cast<microseconds>(steady_clock::now().time_since_epoch());
+            if (initialized_)
+            {
+                if (l8)
+                {
+                    std::string late = "late";
+                    CSVLogger_->logOT(count, startTime, saveTime, pubTime, ctrlTime, endTime, late);
+                }
+                else
+                {
+                    std::string nlate = "";
+                    CSVLogger_->logOT(count, startTime, saveTime, pubTime, ctrlTime, endTime, nlate);
+                }
+                count++;
+            }
+
+#else // ------------------------------ Normal procedure
+      // Timing control
+            using namespace std::chrono;
+            const auto period = microseconds(2000);
+            auto start = steady_clock::now();
+
+            if (initialized_)
+            {
+                Controller_->savePose();
+                StatePublisher_->publish();
+                Controller_->setForce();
+            }
+
+            // Input Management step
+            getUserInput();
+
+            // Timing control
+            auto elapsed = steady_clock::now() - start;
+            if (!(elapsed < period))
+            {
+                // auto overrun = duration_cast<microseconds>(elapsed - period).count();
+                LOG_WARN("control thread late");
+            }
+
+#endif
         }
         // deal with shutdown
         else
@@ -771,20 +777,6 @@ public:
                 std::this_thread::sleep_for(100ms);
             }
             rclcpp::shutdown();
-        }
-
-#ifdef DEBUG_OPERATION_TIME
-        // Increase counter and log end of loop
-        CSVLogger_->logOT(count, 4);
-        count++;
-#endif
-
-        // Timing control
-        auto elapsed = steady_clock::now() - start;
-        if (!(elapsed < period))
-        {
-            // auto overrun = duration_cast<microseconds>(elapsed - period).count();
-            LOG_WARN("control thread late");
         }
     }
 
@@ -871,7 +863,7 @@ private:
     bool initialized_ = false;
     std::shared_ptr<rclcpp::Node> node_;
     std::shared_ptr<SharedData> SharedData_;
-    uint64_t count = 0;
+    uint16_t count = 0;
     std::shared_ptr<CSVLogger> CSVLogger_;
     std::shared_ptr<S7Mode> CurrentMode_;
     std::unique_ptr<S7Controller> Controller_;
