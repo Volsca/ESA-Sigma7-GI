@@ -57,8 +57,8 @@ class Spaceship(Node):
         # ---------- Control Parameters ----------
         # (no kd, as derivative amplifies delay instability)
         # Will need to implement anti windup for integral term later
-        self.kp = 0.0  # Proportional gain
-        self.ki = 0.0  # Integral gain
+        self.kp = 50 # Proportional gain
+        self.ki = 0.1  # Integral gain
         self.integral_x = 0.0
         self.integral_y = 0.0
         self.integral_z = 0.0
@@ -138,8 +138,10 @@ class Spaceship(Node):
             self.integral_y += (centering_position - py) * 0.002
             self.integral_z += (centering_position - pz) * 0.002
 
+            self.get_logger().info(f"integral values : x:{self.integral_x}, y:{self.integral_y}, z:{self.integral_z}")
+
             force = dx, dy, dz, ta, tb, tg
-            self.get_logger().debug(f"Calculated force: {force}")
+            #self.get_logger().debug(f"Calculated force: {force}")
             self.receivedframelist.append(self.latest_odo.header.frame_id)
             self.sendforce(
                 *force, self.latest_odo.header.frame_id
@@ -222,13 +224,13 @@ class ForcePub:
             ty = abs(round(float(msg.wrench.torque.y), 6))
             tz = abs(round(float(msg.wrench.torque.z), 6))
 
-            self.node.get_logger().info(
-                f"Published force wrench (fx={x}, fy={y}, fz={z}, "
-                f"tx={tx}, ty={ty}, tz={tz})"
-            )
-            self.node.get_logger().info(
-                f"Published wrench message with message id: {msg.header.frame_id}"
-            )
+            #self.node.get_logger().info(
+            #    f"Published force wrench (fx={x}, fy={y}, fz={z}, "
+            #    f"tx={tx}, ty={ty}, tz={tz})"
+            #)
+            #self.node.get_logger().info(
+            #    f"Published wrench message with message id: {msg.header.frame_id}"
+            #)
             self.node.sentframelist.append(msg.header.frame_id)
 
 
@@ -246,11 +248,11 @@ class StateSub:
         self.latest_odo = None
 
     def pose_callback(self, msg):
-        # This function is called whenever a new message is received on the "controller_pose_topic"
+        # This function is called whenever a new message is received on the "controller_odometry_topic"
         self.latest_odo = msg
-        self.node.get_logger().debug(
-            f"Received Pose @ {msg.header.stamp.sec}.{msg.header.stamp.nanosec}"
-        )
+        #self.node.get_logger().debug(
+        #    f"Received Pose @ {msg.header.stamp.sec}.{msg.header.stamp.nanosec}"
+        #)
 
 
 # TODO Needs general testing
@@ -269,7 +271,7 @@ class InstructionPub:
     def sendInstruction(self, msg: String):
         try:
             self.publisher_.publish(msg)
-            self.node.get_logger().info(f"Published instruction: {msg.data}")
+            #self.node.get_logger().info(f"Published instruction: {msg.data}")
         except Exception as e:
             self.node.get_logger().error(f"Failed to publish instruction: {e}")
             return
