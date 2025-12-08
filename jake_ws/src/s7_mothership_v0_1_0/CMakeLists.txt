@@ -9,6 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 
 # add executables
 add_executable(s7_mothership_node src/S7Mothership.cpp)
@@ -39,6 +40,7 @@ set_target_properties(s7_mothership_node PROPERTIES
 ament_target_dependencies(s7_mothership_node
   rclcpp
   geometry_msgs
+  nav_msgs
   )
 
 # install the executable/headers/3rd-party headers and libs
@@ -56,7 +58,7 @@ install(DIRECTORY third_party/libs/
 )
 
 #set debugging
-#target_compile_definitions(s7_mothership_node PRIVATE DEBUG_OPERATION_TIME)
+target_compile_definitions(s7_mothership_node PRIVATE DEBUG_OPERATION_TIME)
 target_compile_definitions(s7_mothership_node PRIVATE DEBUG_RESPONSE_TIME)
 #target_compile_definitions(s7_mothership_node PRIVATE DEBUG_LOCK_TIME)
 
