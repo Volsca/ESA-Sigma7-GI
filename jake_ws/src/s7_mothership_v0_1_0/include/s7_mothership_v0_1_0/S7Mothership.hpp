@@ -528,7 +528,7 @@ public:
         : SharedData_(sharedData),
           node_(node)
     {
-        publisher_ = node_->create_publisher<Odometry>("controller_odomtry_topic", 10);
+        publisher_ = node_->create_publisher<Odometry>("controller_odometry_topic", 10);
     }
 
     /**
