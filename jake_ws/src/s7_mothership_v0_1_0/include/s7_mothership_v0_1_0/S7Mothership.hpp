@@ -353,6 +353,7 @@ public:
             auto tmpOdometry = std::make_shared<Odometry>(*SharedData_->getCurrentOdometry());
 
             // Apply derivative control to dampen movements
+            // Do not touch the values without proper understanding of their effects
             float dx = kd * (0.0 - (*tmpOdometry).twist.twist.linear.x);
             float dy = kd * (0.0 - (*tmpOdometry).twist.twist.linear.y);
             float dz = kd * (0.0 - (*tmpOdometry).twist.twist.linear.z);
@@ -506,10 +507,10 @@ private:
     std::shared_ptr<S7Mode> CurrentMode_;
     int frame_id_ = 0;
     // Derivative control terms (DO NOT TOUCH WITHOUT PROPER UNDERSTAND)
-    float kd = 30;
-    float kda = 0.1;
-    float kdb = 0.14;
-    float kdg = 0.06;
+    float kd = 20;
+    float kda = 0.04;
+    float kdb = 0.05;
+    float kdg = 0.02;
 };
 
 /**
