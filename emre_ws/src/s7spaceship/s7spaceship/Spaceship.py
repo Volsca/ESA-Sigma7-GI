@@ -95,19 +95,19 @@ class Spaceship(Node):
             py = self.latest_odo.pose.pose.position.y
             pz = self.latest_odo.pose.pose.position.z
 
-            ix = max(-self.integral_max, min(self.integral_max, self.integral_x))
-            iy = max(-self.integral_max, min(self.integral_max, self.integral_y))
-            iz = max(-self.integral_max, min(self.integral_max, self.integral_z))
+            ix = max(
+                -self.integral_max, min(self.integral_max, self.integral_x)
+            )
+            iy = max(
+                -self.integral_max, min(self.integral_max, self.integral_y)
+            )
+            iz = max(
+                -self.integral_max, min(self.integral_max, self.integral_z)
+            )
 
-            dx = (
-                self.kp * (centering_position - px) + self.ki * ix
-            )
-            dy = (
-                self.kp * (centering_position - py) + self.ki * iy
-            )
-            dz = (
-                self.kp * (centering_position - pz) + self.ki * iz
-            )
+            dx = self.kp * (centering_position - px) + self.ki * ix
+            dy = self.kp * (centering_position - py) + self.ki * iy
+            dz = self.kp * (centering_position - pz) + self.ki * iz
 
             ta = tb = tg = 0.0  # No angular control for now
 
@@ -117,14 +117,17 @@ class Spaceship(Node):
             self.integral_y += (centering_position - py) * 0.002
             self.integral_z += (centering_position - pz) * 0.002
 
-            self.get_logger().info(f"integral values : x:{self.integral_x}, y:{self.integral_y}, z:{self.integral_z}")
+            self.get_logger().info(
+                f"integral values : x:{self.integral_x}, y:{self.integral_y}, z:{self.integral_z}"
+            )
 
             force = dx, dy, dz, ta, tb, tg
-            #self.get_logger().debug(f"Calculated force: {force}")
+            # self.get_logger().debug(f"Calculated force: {force}")
             self.receivedframelist.append(self.latest_odo.header.frame_id)
             self.sendforce(
                 *force, self.latest_odo.header.frame_id
             )  # unpack to six positional args
+
         else:
             # If centering is disabled, send nothing
             self.get_logger().debug(
@@ -144,6 +147,56 @@ class Spaceship(Node):
     def _ctrl_msg_cb(self, msg: String):
         msg.data = self.intmsg_node.latest_msg
         # self.get_logger().debug(f"Received controller message: {msg.data}")
+
+    def shutdown_hook(self, fd, old_settings):
+        self.centering_enabled = False
+        self.force_node.set_forces(0, 0, 0, 0, 0, 0, frame_id="SHUTDOWN")
+        print("Shutting down spaceship bridge...")
+        time.sleep(1)
+        # Save framelist to CSV
+        try:
+            with open("framelist.csv", "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["Received Frames", "Sent Frames"])
+                max_len = max(
+                    len(self.receivedframelist),
+                    len(self.sentframelist),
+                )
+                for i in range(max_len):
+                    received = (
+                        self.receivedframelist[i]
+                        if i < len(self.receivedframelist)
+                        else ""
+                    )
+                    sent = (
+                        self.sentframelist[i]
+                        if i < len(self.sentframelist)
+                        else ""
+                    )
+                    writer.writerow([received, sent])
+                self.get_logger().info(
+                    f"Saved {len(self.sentframelist)} sent and {len(self.receivedframelist)} received frames to framelist.csv"
+                )
+        except Exception as e:
+            self.get_logger().error(f"Failed to save framelist: {e}")
+        self.shutdown = True
+        time.sleep(1)
+        # let KeyInput loop exit + restore TTY
+        try:
+            self.destroy_node()
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        # Guard against double shutdown
+        try:
+            if rclpy.ok():
+                rclpy.shutdown()
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            # Restore the terminal settings when done
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 # TODO Test with S7 to see if its receiving
@@ -203,13 +256,13 @@ class ForcePub:
             ty = abs(round(float(msg.wrench.torque.y), 6))
             tz = abs(round(float(msg.wrench.torque.z), 6))
 
-            #self.node.get_logger().info(
+            # self.node.get_logger().info(
             #    f"Published force wrench (fx={x}, fy={y}, fz={z}, "
             #    f"tx={tx}, ty={ty}, tz={tz})"
-            #)
-            #self.node.get_logger().info(
+            # )
+            # self.node.get_logger().info(
             #    f"Published wrench message with message id: {msg.header.frame_id}"
-            #)
+            # )
             self.node.sentframelist.append(msg.header.frame_id)
 
 
@@ -229,9 +282,9 @@ class StateSub:
     def pose_callback(self, msg):
         # This function is called whenever a new message is received on the "controller_odometry_topic"
         self.latest_odo = msg
-        #self.node.get_logger().debug(
+        # self.node.get_logger().debug(
         #    f"Received Pose @ {msg.header.stamp.sec}.{msg.header.stamp.nanosec}"
-        #)
+        # )
 
 
 # TODO Needs general testing
@@ -250,7 +303,7 @@ class InstructionPub:
     def sendInstruction(self, msg: String):
         try:
             self.publisher_.publish(msg)
-            #self.node.get_logger().info(f"Published instruction: {msg.data}")
+            # self.node.get_logger().info(f"Published instruction: {msg.data}")
         except Exception as e:
             self.node.get_logger().error(f"Failed to publish instruction: {e}")
             return
@@ -303,50 +356,7 @@ def KeyInput(spaceship):
                 spaceship.get_logger().info(
                     "Quit command received, shutting down..."
                 )
-                spaceship.centering_enabled = False
-                print("Shutting down spaceship bridge...")
-                # Save framelist to CSV
-                try:
-                    with open("framelist.csv", "w", newline="") as f:
-                        writer = csv.writer(f)
-                        writer.writerow(["Received Frames", "Sent Frames"])
-                        max_len = max(
-                            len(spaceship.receivedframelist),
-                            len(spaceship.sentframelist),
-                        )
-                        for i in range(max_len):
-                            received = (
-                                spaceship.receivedframelist[i]
-                                if i < len(spaceship.receivedframelist)
-                                else ""
-                            )
-                            sent = (
-                                spaceship.sentframelist[i]
-                                if i < len(spaceship.sentframelist)
-                                else ""
-                            )
-                            writer.writerow([received, sent])
-                        spaceship.get_logger().info(
-                            f"Saved {len(spaceship.sentframelist)} sent and {len(spaceship.receivedframelist)} received frames to framelist.csv"
-                        )
-                except Exception as e:
-                    spaceship.get_logger().error(
-                        f"Failed to save framelist: {e}"
-                    )
-                spaceship.shutdown = True
-                time.sleep(1)  # let KeyInput loop exit + restore TTY
-                try:
-                    spaceship.destroy_node()
-                except Exception:
-                    pass
-                # Guard against double shutdown
-                try:
-                    if rclpy.ok():
-                        rclpy.shutdown()
-                except Exception:
-                    pass
-                finally:
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                spaceship.shutdown_hook(fd, old_settings)
 
     except Exception as e:
         try:
@@ -359,11 +369,6 @@ def KeyInput(spaceship):
 
 # Loops and shutsdown properly now
 def main():
-    rclpy.init()
-    spaceship = Spaceship()
-
-    # keyboard thread (optional)
-    threading.Thread(target=KeyInput, args=(spaceship,), daemon=True).start()
     # sys library: Provides access to system-specific parameters and functions.
     # sys.stdin: Standard input stream (usually the keyboard).
     # sys.stdin.fileno(): Returns the file descriptor (an integer handle) for the input stream. This is needed for low-level terminal operations.
@@ -372,58 +377,17 @@ def main():
     # termios.tcgetattr(fd): Gets the current terminal settings for the file descriptor fd and saves them. This is so you can restore them later.
     old_settings = termios.tcgetattr(fd)
 
+    rclpy.init()
+    spaceship = Spaceship()
+
+    # keyboard thread (optional)
+    threading.Thread(target=KeyInput, args=(spaceship,), daemon=True).start()
+
     try:
         rclpy.spin(spaceship)  # ONLY ONE NODE TO SPIN
     except KeyboardInterrupt:
-        spaceship.centering_enabled = False
-        print("Shutting down spaceship bridge...")
-        # Save framelist to CSV
-        try:
-            with open("framelist.csv", "w", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(["Received Frames", "Sent Frames"])
-                max_len = max(
-                    len(spaceship.receivedframelist),
-                    len(spaceship.sentframelist),
-                )
-                for i in range(max_len):
-                    received = (
-                        spaceship.receivedframelist[i]
-                        if i < len(spaceship.receivedframelist)
-                        else ""
-                    )
-                    sent = (
-                        spaceship.sentframelist[i]
-                        if i < len(spaceship.sentframelist)
-                        else ""
-                    )
-                    writer.writerow([received, sent])
-                spaceship.get_logger().info(
-                    f"Saved {len(spaceship.sentframelist)} sent and {len(spaceship.receivedframelist)} received frames to framelist.csv"
-                )
-        except Exception as e:
-            spaceship.get_logger().error(f"Failed to save framelist: {e}")
-
-        spaceship.shutdown = True
-
-        time.sleep(1)
-    finally:
-        time.sleep(0.5)  # let KeyInput loop exit + restore TTY
-        try:
-            spaceship.destroy_node()
-        except Exception as e:
-            print(f"Error: {e}")
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        # Guard against double shutdown
-        try:
-            if rclpy.ok():
-                rclpy.shutdown()
-        except Exception as e:
-            print(f"Error: {e}")
-        finally:
-            # Restore the terminal settings when done
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        rclpy.spin(spaceship)  # Continue spinning to process shutdown
+        spaceship.shutdown_hook(fd, old_settings)
 
 
 if __name__ == "__main__":
