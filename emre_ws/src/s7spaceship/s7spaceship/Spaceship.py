@@ -150,7 +150,9 @@ class Spaceship(Node):
 
     def shutdown_hook(self, fd, old_settings):
         self.centering_enabled = False
-        self.force_node.set_forces(0, 0, 0, 0, 0, 0, frame_id="SHUTDOWN")
+        self.force_node.set_forces(
+            0, 0, 0, 0, 0, 0, frame_id=self.latest_odo.header.frame_id
+        )
         print("Shutting down spaceship bridge...")
         time.sleep(1)
         # Save framelist to CSV
