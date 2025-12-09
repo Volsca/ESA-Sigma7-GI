@@ -51,3 +51,4 @@ qtcreator-*
 CATKIN_IGNORE
 *.csv
 *.csv#
+emre_ws/framelist.csv
