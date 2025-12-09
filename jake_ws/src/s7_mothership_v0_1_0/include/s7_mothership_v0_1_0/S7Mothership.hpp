@@ -481,7 +481,7 @@ protected:
         }
 
         LOG_INFO("Device Detected");
-        std::cout << COLOR_RED << "      WARNING, do NOT touch Sigma7 during caibration.\n\n" << COLOR_RESET;
+        std::cout << COLOR_RED << "       WARNING, do NOT touch Sigma7 during caibration.\n\n" << COLOR_RESET;
 
         if ((drdCheckInit() < 0))
         {
@@ -506,7 +506,7 @@ protected:
             dhdSleep(2.0);
             return -1;
         }
-        std::cout << COLOR_GREEN << "      Successfully initialised device\n" << COLOR_RESET;
+        std::cout << COLOR_GREEN << "       Successfully initialised device\n" << COLOR_RESET;
         return 1;
     }
 
@@ -674,7 +674,7 @@ public:
         // Controller initialization
         control_thread_ = std::thread(&S7Mothership::initThread, this);
 
-        std::cout << COLOR_BLUE << "      Initializing main thread\n" << COLOR_RESET;
+        std::cout << COLOR_BLUE << "       Initializing main thread\n" << COLOR_RESET;
         loop_timer_ = node_->create_wall_timer(2ms, std::bind(&S7Mothership::loop, this));
 
 #ifdef DEBUG_RESPONSE_TIME
@@ -686,6 +686,11 @@ public:
 #ifdef DEBUG_LOCK_TIME
         LOG_WARN("Lock time logging enabled, expect slightly higher latency overall.");
 #endif
+    }
+
+    ~S7Mothership()
+    {
+        std::cout<< COLOR_GREEN << "Code exiting, see you next time!\n" << COLOR_RESET;
     }
 
     /**
@@ -810,9 +815,9 @@ public:
             {
             case 'q':
             {
-                std::cout << "\n";
+                std::cout << "      Exit called\n";
                 running_ = false;
-                RCLCPP_INFO(rclcpp::get_logger("s7_mothership"), "Exit called");
+                std::cout << COLOR_RED << "Do not ctrl+c, wait for code to exit normally.\n" << COLOR_RESET;
                 break;
             }
             case 'm':
@@ -820,10 +825,12 @@ public:
                 if ((*CurrentMode_) == S7Mode::FREE)
                 {
                     (*CurrentMode_) = S7Mode::FORCEFEEDBACK;
+                    std::cout << "      Force-Feedback activated.\n";
                 }
                 else
                 {
                     (*CurrentMode_) = S7Mode::FREE;
+                    std::cout << "      Force-Feedback deactivated.\n";
                 }
                 break;
             }
@@ -841,7 +848,7 @@ public:
      */
     void initThread()
     {
-        std::cout << COLOR_BLUE << "      Initializing connexion\n" << COLOR_RESET;
+        std::cout << COLOR_BLUE << "       Initializing connexion\n" << COLOR_RESET;
         if (Controller_->initialize())
         {
             initialized_ = true;
@@ -861,27 +868,29 @@ public:
 private:
     void showStartupScreen()
     {
-        std::cout << "      Sigma-7 interface mothership, written by Jacob Wallace & Emre Artar - 2025\n";
-        std::cout << "      ______________________________________________________________________________________________________\n";
-        std::cout << "      '##::::'##::'#######::'########:'##::::'##:'########:'########:::'######::'##::::'##:'####:'########::\n";
-        std::cout << "       ###::'###:'##.... ##:... ##..:: ##:::: ##: ##.....:: ##.... ##:'##... ##: ##:::: ##:. ##:: ##.... ##:\n";
-        std::cout << "       ####'####: ##:::: ##:::: ##:::: ##:::: ##: ##::::::: ##:::: ##: ##:::..:: ##:::: ##:: ##:: ##:::: ##:\n";
-        std::cout << "       ## ### ##: ##:::: ##:::: ##:::: #########: ######::: ########::. ######:: #########:: ##:: ########::\n";
-        std::cout << "       ##. #: ##: ##:::: ##:::: ##:::: ##.... ##: ##...:::: ##.. ##::::..... ##: ##.... ##:: ##:: ##.....:::\n";
-        std::cout << "       ##:.:: ##: ##:::: ##:::: ##:::: ##:::: ##: ##::::::: ##::. ##::'##::: ##: ##:::: ##:: ##:: ##::::::::\n";
-        std::cout << "       ##:::: ##:. #######::::: ##:::: ##:::: ##: ########: ##:::. ##:. ######:: ##:::: ##:'####: ##::::::::\n";
-        std::cout << "      ..:::::..:::.......::::::..:::::..:::::..::........::..:::::..:::......:::..:::::..::....::..:::::::::\n";
-        std::cout << "      ______________________________________________________________________________________________________\n\n";
-        std::cout << "      Mothership version 1.13.0, for Linux Ubintu 24.04 using ROS2-Jazzy (2025-12-09)\n";
-        std::cout << "          Wait for Mothership initialisation before starting Spaceship.\n";
-        std::cout << "          Wait for program initialisation and Sigma-7 calibration before interacting with Sigma-7.\n";
+        std::cout << "       Sigma-7 interface mothership, written by Jacob Wallace & Emre Artar - 2025\n";
+        std::cout << "       ______________________________________________________________________________________________________\n";
+        std::cout << "       '##::::'##::'#######::'########:'##::::'##:'########:'########:::'######::'##::::'##:'####:'########::\n";
+        std::cout << "        ###::'###:'##.... ##:... ##..:: ##:::: ##: ##.....:: ##.... ##:'##... ##: ##:::: ##:. ##:: ##.... ##:\n";
+        std::cout << "        ####'####: ##:::: ##:::: ##:::: ##:::: ##: ##::::::: ##:::: ##: ##:::..:: ##:::: ##:: ##:: ##:::: ##:\n";
+        std::cout << "        ## ### ##: ##:::: ##:::: ##:::: #########: ######::: ########::. ######:: #########:: ##:: ########::\n";
+        std::cout << "        ##. #: ##: ##:::: ##:::: ##:::: ##.... ##: ##...:::: ##.. ##::::..... ##: ##.... ##:: ##:: ##.....:::\n";
+        std::cout << "        ##:.:: ##: ##:::: ##:::: ##:::: ##:::: ##: ##::::::: ##::. ##::'##::: ##: ##:::: ##:: ##:: ##::::::::\n";
+        std::cout << "        ##:::: ##:. #######::::: ##:::: ##:::: ##: ########: ##:::. ##:. ######:: ##:::: ##:'####: ##::::::::\n";
+        std::cout << "       ..:::::..:::.......::::::..:::::..:::::..::........::..:::::..:::......:::..:::::..::....::..:::::::::\n";
+        std::cout << "       ______________________________________________________________________________________________________\n\n";
+        std::cout << "       Mothership version 1.13.0, for Linux Ubintu 24.04 using ROS2-Jazzy (2025-12-09)\n";
+        std::cout << "           Wait for Mothership initialisation before starting Spaceship.\n";
+        std::cout << "           Wait for program initialisation and Sigma-7 calibration before interacting with Sigma-7.\n";
     }
 
     void showInstructionScreen()
     {
         std::cout << "\n";
-        std::cout << "      Control legend : \n";
-        std::cout << COLOR_RED << "      EXIT" << COLOR_RESET << " : q\n";
+        std::cout << "       Control legend : \n";
+        std::cout << COLOR_RED << "       EXIT" << COLOR_RESET << " : q\n";
+        std::cout << COLOR_CYAN << "       Activate/Deactivate Force-Feedback" << COLOR_RESET << " : m\n";
+        std::cout << "\n";
     }
 
 private:
