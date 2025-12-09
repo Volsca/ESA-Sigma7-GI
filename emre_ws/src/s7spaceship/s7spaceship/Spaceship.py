@@ -57,11 +57,18 @@ class Spaceship(Node):
         # ---------- Control Parameters ----------
         # (no kd, as derivative amplifies delay instability)
         # Will need to implement anti windup for integral term later
+<<<<<<< Updated upstream
         self.kp = 50 # Proportional gain
         self.ki = 0.1  # Integral gain
+=======
+        self.kp = 40  # Proportional gain
+        self.ki = 0.0  # Integral gain
+>>>>>>> Stashed changes
         self.integral_x = 0.0
         self.integral_y = 0.0
         self.integral_z = 0.0
+
+        self.integral_max = 0.6
 
         self.centering_enabled = False
         self.mode = "Centering"
@@ -86,33 +93,6 @@ class Spaceship(Node):
     def centering(self):
         if self.centering_enabled and self.state_node.latest_odo is not None:
             self.latest_odo = self.state_node.latest_odo
-            # Commented out to test PI control
-            """ px = self.latest_odo.pose.pose.position.x
-            py = self.latest_odo.pose.pose.position.y
-            pz = self.latest_odo.pose.pose.position.z
-
-            da = self.latest_odo.pose.pose.orientation.x
-            db = self.latest_odo.pose.pose.orientation.y
-            dg = self.latest_odo.pose.pose.orientation.z
-
-            # Linear velocities from twist
-            vx = self.latest_odo.twist.twist.linear.x
-            vy = self.latest_odo.twist.twist.linear.y
-            vz = self.latest_odo.twist.twist.linear.z
-
-            va = self.latest_odo.twist.twist.angular.x
-            vb = self.latest_odo.twist.twist.angular.y
-            vg = self.latest_odo.twist.twist.angular.z
-
-            # PD control law
-            # The 0.0s represent the center position, this can be altered to change the centering position
-            dx = self.kp * (0.0 - px) + self.kd * (0.0 - vx)
-            dy = self.kp * (0.0 - py) + self.kd * (0.0 - vy)
-            dz = self.kp * (0.0 - pz) + self.kd * (0.0 - vz)
-
-            ta = self.kpa * (0.0 - da) + self.kda * (0.0 - va)
-            tb = self.kpb * (0.0 - db) + self.kdb * (0.0 - vb)
-            tg = self.kpg * (0.0 - dg) + self.kdg * (0.0 - vg) """
 
             # ---------- Linear Control ----------
             centering_position = 0.0  # placeholder for custom centering spring
@@ -120,14 +100,18 @@ class Spaceship(Node):
             py = self.latest_odo.pose.pose.position.y
             pz = self.latest_odo.pose.pose.position.z
 
+            ix = max(-self.integral_max, min(self.integral_max, self.integral_x))
+            iy = max(-self.integral_max, min(self.integral_max, self.integral_y))
+            iz = max(-self.integral_max, min(self.integral_max, self.integral_z))
+
             dx = (
-                self.kp * (centering_position - px) + self.ki * self.integral_x
+                self.kp * (centering_position - px) + self.ki * ix
             )
             dy = (
-                self.kp * (centering_position - py) + self.ki * self.integral_y
+                self.kp * (centering_position - py) + self.ki * iy
             )
             dz = (
-                self.kp * (centering_position - pz) + self.ki * self.integral_z
+                self.kp * (centering_position - pz) + self.ki * iz
             )
 
             ta = tb = tg = 0.0  # No angular control for now
