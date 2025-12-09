@@ -505,10 +505,11 @@ private:
     std::shared_ptr<SharedData> SharedData_;
     std::shared_ptr<S7Mode> CurrentMode_;
     int frame_id_ = 0;
+    // Derivative control terms (DO NOT TOUCH WITHOUT PROPER UNDERSTAND)
     float kd = 30;
-    float kda = 0.0;
-    float kdb = 0.0;
-    float kdg = 0.0;
+    float kda = 0.1;
+    float kdb = 0.14;
+    float kdg = 0.06;
 };
 
 /**
