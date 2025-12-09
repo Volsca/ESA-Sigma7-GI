@@ -57,13 +57,8 @@ class Spaceship(Node):
         # ---------- Control Parameters ----------
         # (no kd, as derivative amplifies delay instability)
         # Will need to implement anti windup for integral term later
-<<<<<<< Updated upstream
-        self.kp = 50 # Proportional gain
-        self.ki = 0.1  # Integral gain
-=======
         self.kp = 40  # Proportional gain
         self.ki = 0.0  # Integral gain
->>>>>>> Stashed changes
         self.integral_x = 0.0
         self.integral_y = 0.0
         self.integral_z = 0.0
