@@ -46,19 +46,23 @@ class Spaceship(Node):
         self.kpb = 0
         self.kdb = 0
         self.kpg = 0
-        self.kdg = 0"""
-        """self.kpa = 1.2
+        self.kdg = 0
+        self.kpa = 1.2
         self.kda = 0.1
         self.kpb = 0.55
         self.kdb = 0.14
         self.kpg = 0.3
-        self.kdg = 0.06"""
+        self.kdg = 0.06
+        """
 
         # ---------- Control Parameters ----------
         # (no kd, as derivative amplifies delay instability)
         # Will need to implement anti windup for integral term later
         self.kp = 100  # Proportional gain
-        self.ki = 0.0  # Integral gain # CAUSES WINDUP, Kind of unstable
+        self.kpa = 1.2
+        self.kpb = 0.55
+        self.kpg = 0.3
+        self.ki = 0.0  # Integral gain --  Unstable at nonzero for now
         self.integral_x = 0.0
         self.integral_y = 0.0
         self.integral_z = 0.0
@@ -91,10 +95,14 @@ class Spaceship(Node):
 
             # ---------- Linear Control ----------
             centering_position = 0.0  # placeholder for custom centering spring
-            px = self.latest_odo.pose.pose.position.x
-            py = self.latest_odo.pose.pose.position.y
-            pz = self.latest_odo.pose.pose.position.z
+            posx = self.latest_odo.pose.pose.position.x
+            posy = self.latest_odo.pose.pose.position.y
+            posz = self.latest_odo.pose.pose.position.z
+            rota = self.latest_odo.pose.pose.orientation.x
+            rotb = self.latest_odo.pose.pose.orientation.y
+            rotg = self.latest_odo.pose.pose.orientation.z
 
+            # Anti-windup for integral terms
             ix = max(
                 -self.integral_max, min(self.integral_max, self.integral_x)
             )
@@ -105,23 +113,25 @@ class Spaceship(Node):
                 -self.integral_max, min(self.integral_max, self.integral_z)
             )
 
-            dx = self.kp * (centering_position - px) + self.ki * ix
-            dy = self.kp * (centering_position - py) + self.ki * iy
-            dz = self.kp * (centering_position - pz) + self.ki * iz
-
-            ta = tb = tg = 0.0  # No angular control for now
+            # Compute control forces
+            dx = self.kp * (centering_position - posx)  # + self.ki * ix
+            dy = self.kp * (centering_position - posy)  # + self.ki * iy
+            dz = self.kp * (centering_position - posz)  # + self.ki * iz
+            da = self.kpa * (centering_position - rota)
+            db = self.kpb * (centering_position - rotb)
+            dg = self.kpg * (centering_position - rotg)
 
             # update integral terms
             # dt = 0.002s because 500Hz
-            self.integral_x += (centering_position - px) * 0.002
-            self.integral_y += (centering_position - py) * 0.002
-            self.integral_z += (centering_position - pz) * 0.002
+            self.integral_x += (centering_position - posx) * 0.002
+            self.integral_y += (centering_position - posy) * 0.002
+            self.integral_z += (centering_position - posz) * 0.002
 
             self.get_logger().info(
                 f"integral values : x:{self.integral_x}, y:{self.integral_y}, z:{self.integral_z}"
             )
 
-            force = dx, dy, dz, ta, tb, tg
+            force = dx, dy, dz, da, db, dg
             # self.get_logger().debug(f"Calculated force: {force}")
             self.receivedframelist.append(self.latest_odo.header.frame_id)
             self.sendforce(
