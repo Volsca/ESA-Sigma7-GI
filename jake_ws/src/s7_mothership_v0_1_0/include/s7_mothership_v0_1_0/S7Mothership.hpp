@@ -14,6 +14,17 @@
 
 using namespace std::chrono_literals;
 
+// Text color macros
+#define COLOR_BLACK "\033[30m"
+#define COLOR_RED "\033[31m"
+#define COLOR_GREEN "\033[32m"
+#define COLOR_YELLOW "\033[33m"
+#define COLOR_BLUE "\033[34m"
+#define COLOR_MAGENTA "\033[35m"
+#define COLOR_CYAN "\033[36m"
+#define COLOR_WHITE "\033[37m"
+#define COLOR_RESET "\033[0m"
+
 /**
  * @defgroup logger Macros
  * @brief Macros for simplified ROS2 logging.
@@ -470,7 +481,7 @@ protected:
         }
 
         LOG_INFO("Device Detected");
-        LOG_WARN("WARNING, do NOT touch Sigma7 during caibration.\n\n");
+        std::cout << COLOR_RED << "      WARNING, do NOT touch Sigma7 during caibration.\n\n" << COLOR_RESET;
 
         if ((drdCheckInit() < 0))
         {
@@ -495,7 +506,7 @@ protected:
             dhdSleep(2.0);
             return -1;
         }
-        LOG_INFO("Successfully initialised device");
+        std::cout << COLOR_GREEN << "      Successfully initialised device\n" << COLOR_RESET;
         return 1;
     }
 
@@ -656,13 +667,14 @@ public:
           ForceSubscriber_(std::make_unique<S7ForceSubscriber>(SharedData_, node_, CSVLogger_))
     {
         showStartupScreen();
+        showInstructionScreen();
 
         (*CurrentMode_) = S7Mode::FREE;
 
         // Controller initialization
         control_thread_ = std::thread(&S7Mothership::initThread, this);
 
-        LOG_INFO("Initializing main thread");
+        std::cout << COLOR_BLUE << "      Initializing main thread\n" << COLOR_RESET;
         loop_timer_ = node_->create_wall_timer(2ms, std::bind(&S7Mothership::loop, this));
 
 #ifdef DEBUG_RESPONSE_TIME
@@ -829,7 +841,7 @@ public:
      */
     void initThread()
     {
-        LOG_INFO("Initializing connexion");
+        std::cout << COLOR_BLUE << "      Initializing connexion\n" << COLOR_RESET;
         if (Controller_->initialize())
         {
             initialized_ = true;
@@ -849,7 +861,7 @@ public:
 private:
     void showStartupScreen()
     {
-        std::cout << "Sigma-7 interface mothership, written by Jacob Wallace & Emre Artar - 2025\n";
+        std::cout << "      Sigma-7 interface mothership, written by Jacob Wallace & Emre Artar - 2025\n";
         std::cout << "      ______________________________________________________________________________________________________\n";
         std::cout << "      '##::::'##::'#######::'########:'##::::'##:'########:'########:::'######::'##::::'##:'####:'########::\n";
         std::cout << "       ###::'###:'##.... ##:... ##..:: ##:::: ##: ##.....:: ##.... ##:'##... ##: ##:::: ##:. ##:: ##.... ##:\n";
@@ -860,7 +872,16 @@ private:
         std::cout << "       ##:::: ##:. #######::::: ##:::: ##:::: ##: ########: ##:::. ##:. ######:: ##:::: ##:'####: ##::::::::\n";
         std::cout << "      ..:::::..:::.......::::::..:::::..:::::..::........::..:::::..:::......:::..:::::..::....::..:::::::::\n";
         std::cout << "      ______________________________________________________________________________________________________\n\n";
-        std::cout << "Wait for program initialisation and Sigma-7 calibration before interacting with Sigma-7.\n\n";
+        std::cout << "      Mothership version 1.13.0, for Linux Ubintu 24.04 using ROS2-Jazzy (2025-12-09)\n";
+        std::cout << "          Wait for Mothership initialisation before starting Spaceship.\n";
+        std::cout << "          Wait for program initialisation and Sigma-7 calibration before interacting with Sigma-7.\n";
+    }
+
+    void showInstructionScreen()
+    {
+        std::cout << "\n";
+        std::cout << "      Control legend : \n";
+        std::cout << COLOR_RED << "      EXIT" << COLOR_RESET << " : q\n";
     }
 
 private:
