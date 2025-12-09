@@ -9,8 +9,6 @@
 #include <mutex>
 #include "drdc.h"
 #include "rclcpp/rclcpp.hpp"
-// #include "geometry_msgs/msg/pose_stamped.hpp"
-// #include "geometry_msgs/msg/twist_stamped.hpp"
 #include "geometry_msgs/msg/wrench_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 
@@ -309,6 +307,8 @@ private:
  * @brief Object in charge of managing the control and data aquisition
  * loop of the Sigma7. Links using same-name functions in S7Mothership.
  *
+ * Takes care of filtering sigma7 movement through derivative control
+ *
  */
 class S7Controller //: public rclcpp::node
 {
@@ -350,19 +350,18 @@ public:
 
         case FORCEFEEDBACK:
             auto tmpWrench = std::make_shared<WrenchStamped>(*SharedData_->getCurrentWrench());
+            auto tmpOdometry = std::make_shared<Odometry>(*SharedData_->getCurrentOdometry());
 
-            // Rewrite into extra filtering
-            /*// Unnecessary copy, rewrite TODO
-            double fx = (*tmpWrench).wrench.force.x;
-            double fy = (*tmpWrench).wrench.force.y;
-            double fz = (*tmpWrench).wrench.force.z;
+            // Apply derivative control to dampen movements
+            float dx = kd * (0.0 - (*tmpOdometry).twist.twist.linear.x);
+            float dy = kd * (0.0 - (*tmpOdometry).twist.twist.linear.y);
+            float dz = kd * (0.0 - (*tmpOdometry).twist.twist.linear.z);
+            float da = kda * (0.0 - (*tmpOdometry).twist.twist.angular.x);
+            float db = kdb * (0.0 - (*tmpOdometry).twist.twist.angular.y);
+            float dg = kdg * (0.0 - (*tmpOdometry).twist.twist.angular.z);
 
-            double tx = (*tmpWrench).wrench.torque.x;
-            double ty = (*tmpWrench).wrench.torque.y;
-            double tz = (*tmpWrench).wrench.torque.z;*/
-
-            if (dhdSetForceAndTorqueAndGripperForce((*tmpWrench).wrench.force.x, (*tmpWrench).wrench.force.y, (*tmpWrench).wrench.force.z,
-                                                    (*tmpWrench).wrench.torque.x, (*tmpWrench).wrench.torque.y, (*tmpWrench).wrench.torque.z, 1) == (DHD_MOTOR_SATURATED | -1))
+            if (dhdSetForceAndTorqueAndGripperForce((*tmpWrench).wrench.force.x + dx, (*tmpWrench).wrench.force.y + dy, (*tmpWrench).wrench.force.z + dz,
+                                                    (*tmpWrench).wrench.torque.x + da, (*tmpWrench).wrench.torque.y + db, (*tmpWrench).wrench.torque.z + dg, 1) == (DHD_MOTOR_SATURATED | -1))
             {
                 LOG_ERROR("Motor saturated/unable to set force");
                 return -1;
@@ -506,6 +505,10 @@ private:
     std::shared_ptr<SharedData> SharedData_;
     std::shared_ptr<S7Mode> CurrentMode_;
     int frame_id_ = 0;
+    float kd = 30;
+    float kda = 0.0;
+    float kdb = 0.0;
+    float kdg = 0.0;
 };
 
 /**
