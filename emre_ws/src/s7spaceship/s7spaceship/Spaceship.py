@@ -416,6 +416,8 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                     spaceship.force_node.set_forces(
                         0.0, 0.0, 0.0, 0.0, 0.0, 0.0, frame_id="1234567890"
                     )
+                if spaceship.centering_enabled:
+                    spaceship.directional_enabled = False
 
             elif ch == "d" and spaceship.force_enabled:
                 spaceship.mode = "Directional Control"
@@ -432,62 +434,82 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                     spaceship.force_node.set_forces(
                         0.0, 0.0, 0.0, 0.0, 0.0, 0.0, frame_id="1234567890"
                     )
+                if spaceship.directional_enabled:
+                    spaceship.centering_enabled = False
 
             elif (
                 ch == "i"
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                spaceship.dirx = 2.0
-                spaceship.get_logger().info(
-                    f"Direction X increased to {spaceship.dirx} (i)."
-                )
+                if spaceship.dirx == 5.0:
+                    spaceship.dirx = 0.0
+                else:
+                    spaceship.dirx = 5.0
+                    spaceship.get_logger().info(
+                        f"Direction X increased to {spaceship.dirx} (i)."
+                    )
             elif (
                 ch == "k"
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                spaceship.dirx = -2.0
-                spaceship.get_logger().info(
-                    f"Direction X decreased to {spaceship.dirx} (k)."
-                )
+                if spaceship.dirx == -5.0:
+                    spaceship.dirx = 0.0
+                else:
+                    spaceship.dirx = -5.0
+                    spaceship.get_logger().info(
+                        f"Direction X decreased to {spaceship.dirx} (k)."
+                    )
             elif (
                 ch == "j"
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                spaceship.diry = 2.0
-                spaceship.get_logger().info(
-                    f"Direction Y increased to {spaceship.diry} (j)."
-                )
+                if spaceship.diry == 5.0:
+                    spaceship.diry = 0.0
+                else:
+                    spaceship.diry = 5.0
+                    spaceship.get_logger().info(
+                        f"Direction Y increased to {spaceship.diry} (j)."
+                    )
             elif (
                 ch == "l"
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                spaceship.diry = -2.0
-                spaceship.get_logger().info(
-                    f"Direction Y decreased to {spaceship.diry} (l)."
-                )
+                if spaceship.diry == -5.0:
+                    spaceship.diry = 0.0
+                else:
+                    spaceship.diry = -5.0
+                    spaceship.get_logger().info(
+                        f"Direction Y decreased to {spaceship.diry} (l)."
+                    )
 
             elif (
                 ch == "u"
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                spaceship.dirz = 2.0
-                spaceship.get_logger().info(
-                    f"Direction Z increased to {spaceship.dirz} (u)."
-                )
+                if spaceship.dirz == 5.0:
+                    spaceship.dirz = 0.0
+                else:
+                    spaceship.dirz = 5.0
+                    spaceship.get_logger().info(
+                        f"Direction Z increased to {spaceship.dirz} (u)."
+                    )
             elif (
                 ch == "h"
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                spaceship.dirz = -2.0
-                spaceship.get_logger().info(
-                    f"Direction Z decreased to {spaceship.dirz} (h)."
-                )
+                if spaceship.dirz == -5.0:
+                    spaceship.dirz = 0.0
+                else:
+                    spaceship.dirz = -5.0
+                    spaceship.get_logger().info(
+                        f"Direction Z decreased to {spaceship.dirz} (h)."
+                    )
 
             else:
                 spaceship.get_logger().info(f"Unrecognized key '{ch}' pressed")
