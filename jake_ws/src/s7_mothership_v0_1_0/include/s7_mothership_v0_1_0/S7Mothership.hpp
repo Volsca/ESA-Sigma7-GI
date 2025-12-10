@@ -1,5 +1,7 @@
 #include <chrono>
+#include <iostream>
 #include <fstream>
+#include <sys/ioctl.h>
 #include <string>
 #include <memory>
 #include <atomic>
@@ -279,7 +281,7 @@ public:
         {
             avgrt = (rtIntegral / rtCounter);
         }
-        else 
+        else
         {
             avgrt = 0;
         }
@@ -802,7 +804,14 @@ public:
                 CSVLogger_->getAvgResponseTime(avgrt);
                 CSVLogger_->getMinMaxResponseTime(minrt, maxrt);
 
-                std::cout << "       Respionse times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << "\n";
+                struct winsize w;
+                ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+                int lastRow = w.ws_row;
+                //int lastCol = w.ws_col;
+
+                std::cout << "\033[1;1H\033[2K";
+                std::cout << COLOR_MAGENTA << "       Response times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << COLOR_RESET;
+                std::cout << "\033[" << lastRow << ";1H";
             }
 #endif
 
@@ -860,7 +869,14 @@ public:
                 CSVLogger_->getAvgResponseTime(avgrt);
                 CSVLogger_->getMinMaxResponseTime(minrt, maxrt);
 
-                std::cout << "       Respionse times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << "\n";
+                struct winsize w;
+                ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+                int lastRow = w.ws_row;
+                //int lastCol = w.ws_col;
+
+                std::cout << "\033[1;1H\033[2K";
+                std::cout << "       Response times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt;
+                std::cout << "\033[" << lastRow << ";1H";
             }
 #endif
 
