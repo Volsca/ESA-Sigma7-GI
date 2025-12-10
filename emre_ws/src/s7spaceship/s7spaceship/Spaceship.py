@@ -108,10 +108,7 @@ class Spaceship(Node):
 
             force = self.dirx, self.diry, self.dirz, 0.0, 0.0, 0.0
             # self.get_logger().debug(f"Calculated force: {force}")
-            self.receivedframelist.append(self.latest_odo.header.frame_id)
-            self.sendforce(
-                *force, self.latest_odo.header.frame_id
-            )  # unpack to six positional args
+            self.sendforce(*force, "1")  # unpack to six positional args
 
     def centering(self):
         if (
@@ -442,24 +439,28 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                if spaceship.dirx == 5.0:
+                if spaceship.dirx == -5.0:
                     spaceship.dirx = 0.0
                 else:
-                    spaceship.dirx = 5.0
-                    spaceship.get_logger().info(
-                        f"Direction X increased to {spaceship.dirx} (i)."
+                    spaceship.dirx = -5.0
+                    print(
+                        f"Direction X increased to {spaceship.dirx} (i).",
+                        end="\r",
+                        flush=True,
                     )
             elif (
                 ch == "k"
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                if spaceship.dirx == -5.0:
+                if spaceship.dirx == 5.0:
                     spaceship.dirx = 0.0
                 else:
-                    spaceship.dirx = -5.0
-                    spaceship.get_logger().info(
-                        f"Direction X decreased to {spaceship.dirx} (k)."
+                    spaceship.dirx = 5.0
+                    print(
+                        f"Direction X decreased to {spaceship.dirx} (k).",
+                        end="\r",
+                        flush=True,
                     )
             elif (
                 ch == "j"
@@ -470,8 +471,10 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                     spaceship.diry = 0.0
                 else:
                     spaceship.diry = 5.0
-                    spaceship.get_logger().info(
-                        f"Direction Y increased to {spaceship.diry} (j)."
+                    print(
+                        f"Direction Y increased to {spaceship.diry} (j).",
+                        end="\r",
+                        flush=True,
                     )
             elif (
                 ch == "l"
@@ -482,8 +485,10 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                     spaceship.diry = 0.0
                 else:
                     spaceship.diry = -5.0
-                    spaceship.get_logger().info(
-                        f"Direction Y decreased to {spaceship.diry} (l)."
+                    print(
+                        f"Direction Y decreased to {spaceship.diry} (l).",
+                        end="\r",
+                        flush=True,
                     )
 
             elif (
@@ -495,8 +500,10 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                     spaceship.dirz = 0.0
                 else:
                     spaceship.dirz = 5.0
-                    spaceship.get_logger().info(
-                        f"Direction Z increased to {spaceship.dirz} (u)."
+                    print(
+                        f"Direction Z increased to {spaceship.dirz} (u).",
+                        end="\r",
+                        flush=True,
                     )
             elif (
                 ch == "h"
@@ -507,8 +514,10 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                     spaceship.dirz = 0.0
                 else:
                     spaceship.dirz = -5.0
-                    spaceship.get_logger().info(
-                        f"Direction Z decreased to {spaceship.dirz} (h)."
+                    print(
+                        f"Direction Z decreased to {spaceship.dirz} (h).",
+                        end="\r",
+                        flush=True,
                     )
 
             else:
@@ -536,7 +545,7 @@ def startup():
                     ___\///////////_____\///___________\////////\//_____\////////____\//////////__\//////////__\///____\///__\///__\///__________
     """
 
-    version_info = r"""           Spaceship version 1.21.0, for Linux Ubuntu 24.04 using ROS2-Jazzy (2025-12-09) """
+    version_info = r"""                     Spaceship version 1.21.0, for Linux Ubuntu 24.04 using ROS2-Jazzy (2025-12-09) """
 
     print("\033[31mThis is red text\033[0m")
     print("\033[32mThis is green text\033[0m")
@@ -545,7 +554,7 @@ def startup():
     cmenu = """Controls:
     \033[32m SPACE \033[0m : Toggle force mode (This needs to be enabled for other modes to work)
     \033[34m c     \033[0m : Toggle centering mode
-    \033[34m d     \033[0m : Toggle directional control mode
+    \033[33m d     \033[0m : Toggle directional control mode
     \033[31m q     \033[0m : Quit    
     """
 
