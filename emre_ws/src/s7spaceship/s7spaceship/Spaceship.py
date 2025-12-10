@@ -1,4 +1,3 @@
-# TODO Communicate with RViz using publisher and subscriber
 # TODO Better initilisation of spaceship comments
 
 import sys
@@ -14,6 +13,9 @@ from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import WrenchStamped
 from nav_msgs.msg import Odometry
 import csv
+
+
+# Make sure every force you send is float and not integer. 0 instead of 0.0 will cause conversion issues.
 
 
 class Spaceship(Node):
@@ -66,13 +68,21 @@ class Spaceship(Node):
         self.integral_x = 0.0
         self.integral_y = 0.0
         self.integral_z = 0.0
-
         self.integral_max = 0.6
 
+        self.dirx = 0.0
+        self.diry = 0.0
+        self.dirz = 0.0
+
+        self.dira = 0.0
+        self.dirb = 0.0
+        self.dirg = 0.0
+
+        self.force_enabled = False
+        self.directional_enabled = False
         self.centering_enabled = False
-        self.mode = "Centering"
+        self.mode = None
         self.shutdown = False
-        self.get_logger().info("Press SPACE to toggle centering.")
         self.receivedframelist = []
         self.sentframelist = []
         self.create_timer(0.001, self.sigmamode)  # 1000 Hz
@@ -89,8 +99,26 @@ class Spaceship(Node):
     def sendforce(self, fx, fy, fz, tx, ty, tz, frame_id=None):
         self.force_node.set_forces(fx, fy, fz, tx, ty, tz, frame_id)
 
+    def directional_control(self):
+        if (
+            self.mode == "Directional Control"
+            and self.state_node.latest_odo is not None
+        ):
+            self.latest_odo = self.state_node.latest_odo
+
+            force = self.dirx, self.diry, self.dirz, 0, 0, 0
+            # self.get_logger().debug(f"Calculated force: {force}")
+            self.receivedframelist.append(self.latest_odo.header.frame_id)
+            self.sendforce(
+                *force, self.latest_odo.header.frame_id
+            )  # unpack to six positional args
+
     def centering(self):
-        if self.centering_enabled and self.state_node.latest_odo is not None:
+        if (
+            self.mode == "Centering"
+            and self.centering_enabled
+            and self.state_node.latest_odo is not None
+        ):
             self.latest_odo = self.state_node.latest_odo
 
             # ---------- Linear Control ----------
@@ -127,7 +155,7 @@ class Spaceship(Node):
             self.integral_y += (centering_position - posy) * 0.002
             self.integral_z += (centering_position - posz) * 0.002
 
-            self.get_logger().info(
+            self.get_logger().debug(
                 f"integral values : x:{self.integral_x}, y:{self.integral_y}, z:{self.integral_z}"
             )
 
@@ -145,9 +173,15 @@ class Spaceship(Node):
             )
             return
 
-    def sigmamode(self, mode=None):
-        if self.mode == "Centering":
-            self.centering()
+    # TODO Test and verify. Implement a combined mode selection
+    def sigmamode(self):
+        if self.force_enabled:
+            if self.mode == "Centering":
+                self.centering()
+            if self.mode == "Directional Control":
+                self.directional_control()
+        else:
+            return
 
     # ---------- Controller -> UI ----------
     def _ctrl_pose_cb(self, msg: PoseStamped):
@@ -160,9 +194,14 @@ class Spaceship(Node):
 
     def shutdown_hook(self, fd, old_settings):
         self.centering_enabled = False
+        self.directional_enabled = False
+        self.force_enabled = False
+        self.get_logger().info("Shutdown hook initiated...")
         try:
             self.get_logger().info("Sending zero forces before shutdown...")
-            self.force_node.set_forces(0, 0, 0, 0, 0, 0, frame_id="1234567890")
+            self.force_node.set_forces(
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, frame_id="1234567890"
+            )
             print("Shutting down spaceship bridge...")
         except Exception:
             print("Something went wrong while sending zero forces.")
@@ -214,7 +253,7 @@ class Spaceship(Node):
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
-# TODO Test with S7 to see if its receiving
+# Tested and works
 class ForcePub:
     def __init__(self, node: Node):
         self.node = node
@@ -224,7 +263,7 @@ class ForcePub:
         # cached wrench (optional)
         self.force_x = self.force_y = self.force_z = 0.0
         self.torque_x = self.torque_y = self.torque_z = 0.0
-        # optional high-rate publisher owned by the SAME node
+        # optional high-rate publisher owned by the SAME node (not needed)
         # self._timer = node.create_timer(0.002, self._timer_cb)  # 500 Hz
 
     def set_forces(
@@ -241,47 +280,38 @@ class ForcePub:
             frame_id = "NOT_SET"
         else:
             msg.header.frame_id = frame_id
-        if self.node.centering_enabled:
-            msg.wrench.force.x = self.force_x
-            msg.wrench.force.y = self.force_y
-            msg.wrench.force.z = self.force_z
 
-            msg.wrench.torque.x = self.torque_x
-            msg.wrench.torque.y = self.torque_y
-            msg.wrench.torque.z = self.torque_z
-        else:
-            msg.wrench.force.x = 0.0
-            msg.wrench.force.y = 0.0
-            msg.wrench.force.z = 0.0
+        msg.wrench.force.x = self.force_x
+        msg.wrench.force.y = self.force_y
+        msg.wrench.force.z = self.force_z
 
-            msg.wrench.torque.x = 0.0
-            msg.wrench.torque.y = 0.0
-            msg.wrench.torque.z = 0.0
-        if not self.node.shutdown:
-            try:
-                self.publisher_.publish(msg)
-            except Exception as e:
-                self.node.get_logger().error(f"Failed to forward force: {e}")
-            # light logging only when meaningfully non-zero
+        msg.wrench.torque.x = self.torque_x
+        msg.wrench.torque.y = self.torque_y
+        msg.wrench.torque.z = self.torque_z
+        try:
+            self.publisher_.publish(msg)
+        except Exception as e:
+            self.node.get_logger().error(f"Failed to forward force: {e}")
+        # light logging only when meaningfully non-zero
+        # use for debugging purposes or if you want to see the forces
+        x = abs(round(float(msg.wrench.force.x), 6))
+        y = abs(round(float(msg.wrench.force.y), 6))
+        z = abs(round(float(msg.wrench.force.z), 6))
+        tx = abs(round(float(msg.wrench.torque.x), 6))
+        ty = abs(round(float(msg.wrench.torque.y), 6))
+        tz = abs(round(float(msg.wrench.torque.z), 6))
 
-            x = abs(round(float(msg.wrench.force.x), 6))
-            y = abs(round(float(msg.wrench.force.y), 6))
-            z = abs(round(float(msg.wrench.force.z), 6))
-            tx = abs(round(float(msg.wrench.torque.x), 6))
-            ty = abs(round(float(msg.wrench.torque.y), 6))
-            tz = abs(round(float(msg.wrench.torque.z), 6))
-
-            # self.node.get_logger().info(
-            #    f"Published force wrench (fx={x}, fy={y}, fz={z}, "
-            #    f"tx={tx}, ty={ty}, tz={tz})"
-            # )
-            # self.node.get_logger().info(
-            #    f"Published wrench message with message id: {msg.header.frame_id}"
-            # )
-            self.node.sentframelist.append(msg.header.frame_id)
+        # self.node.get_logger().info(
+        #    f"Published force wrench (fx={x}, fy={y}, fz={z}, "
+        #    f"tx={tx}, ty={ty}, tz={tz})"
+        # )
+        # self.node.get_logger().info(
+        #    f"Published wrench message with message id: {msg.header.frame_id}"
+        # )
+        self.node.sentframelist.append(msg.header.frame_id)
 
 
-# TODO Test with S7 to see if this is receiving
+# Tested and works
 class StateSub:
     def __init__(self, node: Node):
         self.node = node
@@ -348,30 +378,102 @@ class IntMsgSub:
 
 # TODO Tested and works
 # TODO Add extra features to activate different modes for S7
-def KeyInput(spaceship):
+def KeyInput(spaceship, fd=None, old_settings=None):
     """
     Runs in a background thread.
     Press SPACE to toggle centering (no Enter needed).
     Press Ctrl+C in the main terminal to quit the node as usual.
     """
-
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
     try:
         # Puts the terminal into "cbreak" mode, which means input is available to the program immediately (without waiting for Enter). This is essential for real-time key detection.
         tty.setcbreak(fd)
         while not spaceship.shutdown:
             ch = sys.stdin.read(1)
-            if ch == " ":
-                spaceship.centering_enabled = not spaceship.centering_enabled
-                spaceship.get_logger().info(
-                    f"Centering {'ENABLED' if spaceship.centering_enabled else 'DISABLED'} (space)."
-                )
             if ch == "q":
                 spaceship.get_logger().info(
                     "Quit command received, shutting down..."
                 )
                 spaceship.shutdown_hook(fd, old_settings)
+            if ch == "\x20" or ch == " ":  # SPACE key
+                spaceship.force_enabled = not spaceship.force_enabled
+                spaceship.get_logger().info(
+                    f"Force mode {'ENABLED Select a Mode to apply forces' if spaceship.force_enabled else 'DISABLED'} (space)."
+                )
+
+            elif ch == "c" and spaceship.force_enabled:
+                spaceship.mode = "Centering"
+                spaceship.centering_enabled = not spaceship.centering_enabled
+                spaceship.get_logger().info(
+                    f"Centering mode {'ENABLED' if spaceship.centering_enabled else 'DISABLED'} (c)."
+                )
+
+            elif ch == "d" and spaceship.force_enabled:
+                spaceship.mode = "Directional Control"
+                spaceship.directional_enabled = (
+                    not spaceship.directional_enabled
+                )
+                spaceship.get_logger().info(
+                    f"Directional Control mode {'ENABLED Press (i/j/k/l) to set direction.' if spaceship.directional_enabled else 'DISABLED'} (d). "
+                )
+
+            elif (
+                ch == "i"
+                and spaceship.directional_enabled
+                and spaceship.force_enabled
+            ):
+                spaceship.dirx = 2
+                spaceship.get_logger().info(
+                    f"Direction X increased to {spaceship.dirx} (i)."
+                )
+            elif (
+                ch == "k"
+                and spaceship.directional_enabled
+                and spaceship.force_enabled
+            ):
+                spaceship.dirx = -2
+                spaceship.get_logger().info(
+                    f"Direction X decreased to {spaceship.dirx} (k)."
+                )
+            elif (
+                ch == "j"
+                and spaceship.directional_enabled
+                and spaceship.force_enabled
+            ):
+                spaceship.diry = 2
+                spaceship.get_logger().info(
+                    f"Direction Y increased to {spaceship.diry} (j)."
+                )
+            elif (
+                ch == "l"
+                and spaceship.directional_enabled
+                and spaceship.force_enabled
+            ):
+                spaceship.diry = -2
+                spaceship.get_logger().info(
+                    f"Direction Y decreased to {spaceship.diry} (l)."
+                )
+
+            elif (
+                ch == "u"
+                and spaceship.directional_enabled
+                and spaceship.force_enabled
+            ):
+                spaceship.dirz = 2
+                spaceship.get_logger().info(
+                    f"Direction Z increased to {spaceship.dirz} (u)."
+                )
+            elif (
+                ch == "h"
+                and spaceship.directional_enabled
+                and spaceship.force_enabled
+            ):
+                spaceship.dirz = -2
+                spaceship.get_logger().info(
+                    f"Direction Z decreased to {spaceship.dirz} (h)."
+                )
+
+            else:
+                spaceship.get_logger().info(f"Unrecognized key '{ch}' pressed")
 
     except Exception as e:
         try:
@@ -380,6 +482,31 @@ def KeyInput(spaceship):
             pass
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+
+def startup():
+    art = r"""          Sigma-7 interface Spaceship, written by Emre Artar $ Jacob Wallace - 2025
+            _____/\\\\\\\\\\\___________________________________________________________________________/\\\_____________________________        
+            ___/\\\/////////\\\________________________________________________________________________\/\\\_____________________________       
+            __\//\\\______\///____/\\\\\\\\\___________________________________________________________\/\\\__________/\\\___/\\\\\\\\\__      
+            ___\////\\\__________/\\\/////\\\__/\\\\\\\\\________/\\\\\\\\_____/\\\\\\\\___/\\\\\\\\\\_\/\\\_________\///___/\\\/////\\\_     
+                ______\////\\\______\/\\\\\\\\\\__\////////\\\_____/\\\//////____/\\\/////\\\_\/\\\//////__\/\\\\\\\\\\___/\\\_\/\\\\\\\\\\__    
+                _________\////\\\___\/\\\//////_____/\\\\\\\\\\___/\\\__________/\\\\\\\\\\\__\/\\\\\\\\\\_\/\\\/////\\\_\/\\\_\/\\\//////___   
+                __/\\\______\//\\\__\/\\\__________/\\\/////\\\__\//\\\________\//\\///////___\////////\\\_\/\\\___\/\\\_\/\\\_\/\\\_________  
+                _\///\\\\\\\\\\\/___\/\\\_________\//\\\\\\\\/\\__\///\\\\\\\\__\//\\\\\\\\\\__/\\\\\\\\\\_\/\\\___\/\\\_\/\\\_\/\\\_________ 
+                    ___\///////////_____\///___________\////////\//_____\////////____\//////////__\//////////__\///____\///__\///__\///__________
+    """
+
+    version_info = r"""     Spaceship version 1.21.0, for Linux Ubintu 24.04 using ROS2-Jazzy (2025-12-09) """
+
+    cmenu = """Controls:
+    SPACE : Toggle force mode (centering so far)
+    q     : Quit    
+    """
+
+    print(art)
+    print(version_info)
+    print(cmenu)
 
 
 # Loops and shutsdown properly now
@@ -392,16 +519,22 @@ def main():
     # termios.tcgetattr(fd): Gets the current terminal settings for the file descriptor fd and saves them. This is so you can restore them later.
     old_settings = termios.tcgetattr(fd)
 
+    startup()
+
     rclpy.init()
     spaceship = Spaceship()
 
     # keyboard thread (optional)
-    threading.Thread(target=KeyInput, args=(spaceship,), daemon=True).start()
+    threading.Thread(
+        target=KeyInput, args=(spaceship, fd, old_settings), daemon=True
+    ).start()
 
     try:
         rclpy.spin(spaceship)  # ONLY ONE NODE TO SPIN
     except KeyboardInterrupt:
-        spaceship.get_logger().info("KeyboardInterrupt, shutting down...")
+        spaceship.get_logger().info(
+            "KeyboardInterrupself.force_enabled = Falset, shutting down..."
+        )
         spaceship.get_logger().info(
             "I recommed pressing 'q' to shutdown properly."
         )
