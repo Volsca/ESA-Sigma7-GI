@@ -12,7 +12,6 @@ from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import WrenchStamped
 from nav_msgs.msg import Odometry
-import csv
 
 
 # Make sure every force you send is float and not integer. 0 instead of 0.0 will cause conversion issues.
@@ -208,6 +207,7 @@ class Spaceship(Node):
 
         time.sleep(1)
         # Save framelist to CSV
+        """
         try:
             with open("framelist.csv", "w", newline="") as f:
                 writer = csv.writer(f)
@@ -233,6 +233,7 @@ class Spaceship(Node):
                 )
         except Exception as e:
             self.get_logger().error(f"Failed to save framelist: {e}")
+        """
         self.shutdown = True
         time.sleep(1)
         # let KeyInput loop exit + restore TTY
@@ -399,13 +400,21 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                 spaceship.get_logger().info(
                     f"Force mode {'ENABLED Select a Mode to apply forces' if spaceship.force_enabled else 'DISABLED'} (space)."
                 )
+                if not spaceship.force_enabled:
+                    spaceship.force_node.set_forces(
+                        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, frame_id="1234567890"
+                    )
 
             elif ch == "c" and spaceship.force_enabled:
                 spaceship.mode = "Centering"
                 spaceship.centering_enabled = not spaceship.centering_enabled
                 spaceship.get_logger().info(
-                    f"Centering mode {'ENABLED' if spaceship.centering_enabled else 'DISABLED'} (c)."
+                    f"Centering mode {'ENABLED' if spaceship.centering_enabled else 'DISABLED'} (c). "
                 )
+                if not spaceship.centering_enabled:
+                    spaceship.force_node.set_forces(
+                        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, frame_id="1234567890"
+                    )
 
             elif ch == "d" and spaceship.force_enabled:
                 spaceship.mode = "Directional Control"
@@ -421,7 +430,7 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                spaceship.dirx = 2
+                spaceship.dirx = 2.0
                 spaceship.get_logger().info(
                     f"Direction X increased to {spaceship.dirx} (i)."
                 )
@@ -430,7 +439,7 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                spaceship.dirx = -2
+                spaceship.dirx = -2.0
                 spaceship.get_logger().info(
                     f"Direction X decreased to {spaceship.dirx} (k)."
                 )
@@ -439,7 +448,7 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                spaceship.diry = 2
+                spaceship.diry = 2.0
                 spaceship.get_logger().info(
                     f"Direction Y increased to {spaceship.diry} (j)."
                 )
@@ -448,7 +457,7 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                spaceship.diry = -2
+                spaceship.diry = -2.0
                 spaceship.get_logger().info(
                     f"Direction Y decreased to {spaceship.diry} (l)."
                 )
@@ -458,7 +467,7 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                spaceship.dirz = 2
+                spaceship.dirz = 2.0
                 spaceship.get_logger().info(
                     f"Direction Z increased to {spaceship.dirz} (u)."
                 )
@@ -497,11 +506,17 @@ def startup():
                     ___\///////////_____\///___________\////////\//_____\////////____\//////////__\//////////__\///____\///__\///__\///__________
     """
 
-    version_info = r"""     Spaceship version 1.21.0, for Linux Ubintu 24.04 using ROS2-Jazzy (2025-12-09) """
+    version_info = r"""             Spaceship version 1.21.0, for Linux Ubintu 24.04 using ROS2-Jazzy (2025-12-09) """
+
+    print("\033[31mThis is red text\033[0m")
+    print("\033[32mThis is green text\033[0m")
+    print("\033[34mThis is blue text\033[0m")
 
     cmenu = """Controls:
-    SPACE : Toggle force mode (centering so far)
-    q     : Quit    
+    \033[32m SPACE \033[0m : Toggle force mode (This needs to be enabled for other modes to work)
+    \033[34m c     \033[0m : Toggle centering mode
+    \033[34m d     \033[0m : Toggle directional control mode
+    \033[31m q     \033[0m : Quit    
     """
 
     print(art)
