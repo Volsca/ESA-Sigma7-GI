@@ -105,7 +105,7 @@ class Spaceship(Node):
         ):
             self.latest_odo = self.state_node.latest_odo
 
-            force = self.dirx, self.diry, self.dirz, 0, 0, 0
+            force = self.dirx, self.diry, self.dirz, 0.0, 0.0, 0.0
             # self.get_logger().debug(f"Calculated force: {force}")
             self.receivedframelist.append(self.latest_odo.header.frame_id)
             self.sendforce(
@@ -476,7 +476,7 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                 and spaceship.directional_enabled
                 and spaceship.force_enabled
             ):
-                spaceship.dirz = -2
+                spaceship.dirz = -2.0
                 spaceship.get_logger().info(
                     f"Direction Z decreased to {spaceship.dirz} (h)."
                 )
@@ -494,7 +494,7 @@ def KeyInput(spaceship, fd=None, old_settings=None):
 
 
 def startup():
-    art = r"""          Sigma-7 interface Spaceship, written by Emre Artar $ Jacob Wallace - 2025
+    art = r"""                      Sigma-7 interface Spaceship, written by Emre Artar $ Jacob Wallace - 2025
             _____/\\\\\\\\\\\___________________________________________________________________________/\\\_____________________________        
             ___/\\\/////////\\\________________________________________________________________________\/\\\_____________________________       
             __\//\\\______\///____/\\\\\\\\\___________________________________________________________\/\\\__________/\\\___/\\\\\\\\\__      
@@ -506,7 +506,7 @@ def startup():
                     ___\///////////_____\///___________\////////\//_____\////////____\//////////__\//////////__\///____\///__\///__\///__________
     """
 
-    version_info = r"""             Spaceship version 1.21.0, for Linux Ubintu 24.04 using ROS2-Jazzy (2025-12-09) """
+    version_info = r"""           Spaceship version 1.21.0, for Linux Ubuntu 24.04 using ROS2-Jazzy (2025-12-09) """
 
     print("\033[31mThis is red text\033[0m")
     print("\033[32mThis is green text\033[0m")
