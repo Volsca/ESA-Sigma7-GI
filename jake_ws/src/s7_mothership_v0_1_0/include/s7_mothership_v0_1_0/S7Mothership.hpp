@@ -7,6 +7,7 @@
 #include <ctime>
 #include <vector>
 #include <mutex>
+// #include <algorithm>
 #include "drdc.h"
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/wrench_stamped.hpp"
@@ -131,8 +132,7 @@ enum S7Mode
 {
     // BRAKING,
     FREE,
-    FORCEFEEDBACK //,
-                  // SELF_CENTERING
+    FORCEFEEDBACK
 };
 
 /**
@@ -236,15 +236,32 @@ public:
 
     /**
      * @brief call to write the latest wrench to its corresponding ID in the buffer
+     *
+     * write to correct spot in the vector
+     * doesn't check if the spot exists in the vector (ideally doesn't need to as a force recieved should always have the same ID as a pose already logged)
+     * And also I'm lazy af
+     *
+     * Also update the average response time, max response time and min response time
      */
     void logWrench(u_int id, uint64_t time)
     {
-        // write to correct spot in the vector
-        // doesn't check if the spot exists in the vector (ideally doesn't need to as a force recieved should always have the same ID as a pose already logged)
-        // And also I'm lazy af
+
         if (id < rtBuffer.size())
         {
             rtBuffer[id].time2 = time;
+
+            uint16_t rt = time - rtBuffer[id].time1;
+            // Update integral and counter
+            integral_mutex.lock();
+            rtIntegral += rt;
+            rtCounter++;
+            integral_mutex.unlock();
+
+            // Update max and min
+            limits_mutex.lock();
+            maxrt = std::max(maxrt, rt);
+            minrt = std::min(minrt, rt);
+            limits_mutex.unlock();
         }
         else
         {
@@ -252,7 +269,30 @@ public:
         }
     }
 
-    // TODO, rework logic
+    /**
+     * @brief Retrieves the average response time stored in CSVLogger
+     */
+    void getAvgResponseTime(uint64_t &avgrt)
+    {
+        std::lock_guard<std::mutex> lock_integrals(integral_mutex);
+        if (rtCounter != 0)
+        {
+            avgrt = (rtIntegral / rtCounter);
+        }
+        else 
+        {
+            avgrt = 0;
+        }
+    }
+
+    void getMinMaxResponseTime(uint16_t &min, uint16_t &max)
+    {
+        std::lock_guard<std::mutex> lock_minmax(limits_mutex);
+        min = minrt;
+        max = maxrt;
+    }
+
+    // TODO, rework logic, is very adhoc, but I'm lazy
     void logOT(uint16_t &counter, std::chrono::microseconds &t1, std::chrono::microseconds &t2, std::chrono::microseconds &t3, std::chrono::microseconds &t4, std::chrono::microseconds &t5, std::string &l8)
     {
         OperationTime ot = {counter, t1, t2, t3, t4, t5, l8};
@@ -281,12 +321,16 @@ private:
      */
     void writeResponseTime()
     {
+        // First print average response time calculated at runtime
+        rtFile << "," << "," << "," << (rtIntegral / rtCounter) << "\n";
+
+        // Print the rest of the file
         for (std::vector<ResponseTime>::iterator it = rtBuffer.begin(); it != rtBuffer.end(); ++it)
         {
             rtFile << it->id << "," << it->time1 << "," << it->time2 << "\n";
         }
         rtFile.flush();
-        LOG_INFO("CSV file for response time flushed");
+        LOG_INFO("CSV file for response time written & flushed");
     }
 
     // todo
@@ -297,7 +341,7 @@ private:
             otFile << it->id << "," << it->startTime.count() << "," << it->saveTime.count() << "," << it->pubTime.count() << "," << it->ctrlTime.count() << "," << it->endTime.count() << "," << it->late << "\n";
         }
         otFile.flush();
-        LOG_INFO("CSV file for operation time flushed");
+        LOG_INFO("CSV file for operation time written & flushed");
     }
 
     // todo
@@ -310,6 +354,16 @@ private:
     std::ofstream otFile;
     std::vector<ResponseTime> rtBuffer;
     std::vector<OperationTime> otBuffer;
+
+    // Calculate average response time at runtime
+    // as well as max and min rt
+    // Variables are thread safe
+    std::mutex integral_mutex;
+    uint64_t rtIntegral = 0;
+    uint32_t rtCounter = 0;
+    std::mutex limits_mutex;
+    uint16_t maxrt = 0;
+    uint16_t minrt = 10000; // Absurd value to start comparison
     std::shared_ptr<SharedData> SharedData_;
 };
 
@@ -437,11 +491,11 @@ public:
         return 1;
     }
 
-    int initialize()
+    int initialise()
     {
         if (!hapticInit())
         {
-            LOG_ERROR("failed to initialize Sigma7, make sure device is on and connected, and Mothership is launched with root privileges.");
+            LOG_ERROR("failed to initialise Sigma7, make sure device is on and connected, and Mothership is launched with root privileges.");
             return -1;
         }
 
@@ -481,11 +535,12 @@ protected:
         }
 
         LOG_INFO("Device Detected");
-        std::cout << COLOR_RED << "       WARNING, do NOT touch Sigma7 during caibration.\n\n" << COLOR_RESET;
+        std::cout << COLOR_RED << "       WARNING, do NOT touch Sigma7 during caibration.\n\n"
+                  << COLOR_RESET;
 
         if ((drdCheckInit() < 0))
         {
-            LOG_ERROR("error: failed to reinitialize device (%s)");
+            LOG_ERROR("error: failed to reinitialise device (%s)");
             LOG_ERROR(dhdErrorGetLastStr());
             dhdSleep(2.0);
             return -1;
@@ -506,7 +561,8 @@ protected:
             dhdSleep(2.0);
             return -1;
         }
-        std::cout << COLOR_GREEN << "       Successfully initialised device\n" << COLOR_RESET;
+        std::cout << COLOR_GREEN << "       Successfully initialised device\n"
+                  << COLOR_RESET;
         return 1;
     }
 
@@ -536,7 +592,7 @@ public:
     /**
      * @brief Constructor for S7StatePublisher node.
      *
-     * Initializes the ROS2 node with the name "state_publisher"
+     * initialises the ROS2 node with the name "state_publisher"
      * and creates a publisher on the topic "controller_pose_stamped"
      * , which is subscribed to by a component of S7Spaceship.
      */
@@ -577,7 +633,7 @@ public:
     /**
      * @brief Constructor for S7ForceSubscriber node.
      *
-     * Initializes the ROS2 node with the name "wrench_subscriber"
+     * initialises the ROS2 node with the name "wrench_subscriber"
      * and creates a subscriber on the topic "controller_wrench_topic"
      * containing F.F. instructions for the S7 arm, which is published
      * to by a component of S7Spaceship.
@@ -674,7 +730,8 @@ public:
         // Controller initialization
         control_thread_ = std::thread(&S7Mothership::initThread, this);
 
-        std::cout << COLOR_BLUE << "       Initializing main thread\n" << COLOR_RESET;
+        std::cout << COLOR_BLUE << "       Initializing main thread\n"
+                  << COLOR_RESET;
         loop_timer_ = node_->create_wall_timer(2ms, std::bind(&S7Mothership::loop, this));
 
 #ifdef DEBUG_RESPONSE_TIME
@@ -690,7 +747,8 @@ public:
 
     ~S7Mothership()
     {
-        std::cout<< COLOR_GREEN << "Code exiting, see you next time!\n" << COLOR_RESET;
+        std::cout << COLOR_GREEN << "Code exiting, see you next time!\n"
+                  << COLOR_RESET;
     }
 
     /**
@@ -718,7 +776,7 @@ public:
             microseconds ctrlTime;
             microseconds endTime;
 
-            if (initialized_)
+            if (initialised_)
             {
                 saveTime = duration_cast<microseconds>(steady_clock::now().time_since_epoch());
                 Controller_->savePose();
@@ -733,6 +791,21 @@ public:
             // Input Management step
             getUserInput();
 
+#ifdef DEBUG_RESPONSE_TIME
+            // Response time monitor
+            if (showrtvalues)
+            {
+                uint64_t avgrt;
+                uint16_t minrt;
+                uint16_t maxrt;
+
+                CSVLogger_->getAvgResponseTime(avgrt);
+                CSVLogger_->getMinMaxResponseTime(minrt, maxrt);
+
+                std::cout << "       Respionse times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << "\n";
+            }
+#endif
+
             // Timing control
             auto elapsed = steady_clock::now() - start;
             if (!(elapsed < period))
@@ -743,9 +816,9 @@ public:
             }
 
             // Increase counter and log end of loop
-            // Only log if initialized, otherwise makes no sense.
+            // Only log if initialised, otherwise makes no sense.
             endTime = duration_cast<microseconds>(steady_clock::now().time_since_epoch());
-            if (initialized_)
+            if (initialised_)
             {
                 if (l8)
                 {
@@ -766,7 +839,7 @@ public:
             const auto period = microseconds(2000);
             auto start = steady_clock::now();
 
-            if (initialized_)
+            if (initialised_)
             {
                 Controller_->savePose();
                 StatePublisher_->publish();
@@ -775,6 +848,21 @@ public:
 
             // Input Management step
             getUserInput();
+
+#ifdef DEBUG_RESPONSE_TIME
+            // Response time monitor
+            if (showrtvalues)
+            {
+                uint64_t avgrt;
+                uint16_t minrt;
+                uint16_t maxrt;
+
+                CSVLogger_->getAvgResponseTime(avgrt);
+                CSVLogger_->getMinMaxResponseTime(minrt, maxrt);
+
+                std::cout << "       Respionse times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << "\n";
+            }
+#endif
 
             // Timing control
             auto elapsed = steady_clock::now() - start;
@@ -793,7 +881,7 @@ public:
             loop_timer_->cancel();
             CSVLogger_->flush();
             // edge case
-            while (!initialized_)
+            while (!initialised_)
             {
                 // just wait bro
                 std::this_thread::sleep_for(100ms);
@@ -817,7 +905,8 @@ public:
             {
                 std::cout << "      Exit called\n";
                 running_ = false;
-                std::cout << COLOR_RED << "Do not ctrl+c, wait for code to exit normally.\n" << COLOR_RESET;
+                std::cout << COLOR_RED << "Do not ctrl+c, wait for code to exit normally.\n"
+                          << COLOR_RESET;
                 break;
             }
             case 'm':
@@ -834,8 +923,21 @@ public:
                 }
                 break;
             }
+            case 'r':
+                showrtvalues = !showrtvalues;
+
+                if (showrtvalues)
+                {
+                    std::cout << "       Response time values shown.\n";
+                }
+                else
+                {
+                    std::cout << "       Response time values hidden.\n";
+                }
+                break;
             default:
             {
+                std::cout << "      Unrecognised input.\n";
                 break;
             }
             }
@@ -848,14 +950,15 @@ public:
      */
     void initThread()
     {
-        std::cout << COLOR_BLUE << "       Initializing connexion\n" << COLOR_RESET;
-        if (Controller_->initialize())
+        std::cout << COLOR_BLUE << "       Initializing connexion\n"
+                  << COLOR_RESET;
+        if (Controller_->initialise())
         {
-            initialized_ = true;
+            initialised_ = true;
         }
         else
         {
-            LOG_ERROR("failed to initialize controller, shutting down");
+            LOG_ERROR("failed to initialise controller, shutting down");
             running_ = false;
         }
     }
@@ -879,7 +982,7 @@ private:
         std::cout << "        ##:::: ##:. #######::::: ##:::: ##:::: ##: ########: ##:::. ##:. ######:: ##:::: ##:'####: ##::::::::\n";
         std::cout << "       ..:::::..:::.......::::::..:::::..:::::..::........::..:::::..:::......:::..:::::..::....::..:::::::::\n";
         std::cout << "       ______________________________________________________________________________________________________\n\n";
-        std::cout << "       Mothership version 1.13.0, for Linux Ubintu 24.04 using ROS2-Jazzy (2025-12-09)\n";
+        std::cout << "       Mothership version 1.13.0, for Linux Ubuntu 24.04 using ROS2-Jazzy (2025-12-09)\n";
         std::cout << "           Wait for Mothership initialisation before starting Spaceship.\n";
         std::cout << "           Wait for program initialisation and Sigma-7 calibration before interacting with Sigma-7.\n";
     }
@@ -887,15 +990,17 @@ private:
     void showInstructionScreen()
     {
         std::cout << "\n";
-        std::cout << "       Control legend : \n";
-        std::cout << COLOR_RED << "       EXIT" << COLOR_RESET << " : q\n";
-        std::cout << COLOR_CYAN << "       Activate/Deactivate Force-Feedback" << COLOR_RESET << " : m\n";
+        std::cout << "        --- Control legend ---\n";
+        std::cout << COLOR_CYAN << "       Toggle Force-Feedback" << COLOR_RESET << " : m\n";
+        std::cout << COLOR_WHITE << "       Show response time   " << COLOR_RESET << " : r | (only works while logging response time)\n";
+        std::cout << COLOR_RED << "       EXIT                 " << COLOR_RESET << " : q\n";
         std::cout << "\n";
     }
 
 private:
     bool running_ = true;
-    bool initialized_ = false;
+    bool initialised_ = false;
+    bool showrtvalues = false;
     std::shared_ptr<rclcpp::Node> node_;
     std::shared_ptr<SharedData> SharedData_;
     uint16_t count = 0;
