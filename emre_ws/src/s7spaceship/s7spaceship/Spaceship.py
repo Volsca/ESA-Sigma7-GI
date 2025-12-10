@@ -382,16 +382,7 @@ def KeyInput(spaceship):
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
-# Loops and shutsdown properly now
-def main():
-    # sys library: Provides access to system-specific parameters and functions.
-    # sys.stdin: Standard input stream (usually the keyboard).
-    # sys.stdin.fileno(): Returns the file descriptor (an integer handle) for the input stream. This is needed for low-level terminal operations.
-    fd = sys.stdin.fileno()
-    # termios library: Allows you to configure terminal I/O settings on Unix systems.
-    # termios.tcgetattr(fd): Gets the current terminal settings for the file descriptor fd and saves them. This is so you can restore them later.
-    old_settings = termios.tcgetattr(fd)
-
+def startup():
     art = r"""
 _____/\\\\\\\\\\\___________________________________________________________________________/\\\_____________________________        
  ___/\\\/////////\\\________________________________________________________________________\/\\\_____________________________       
@@ -405,6 +396,17 @@ _____/\\\\\\\\\\\_______________________________________________________________
     """
 
     print(art)
+
+
+# Loops and shutsdown properly now
+def main():
+    # sys library: Provides access to system-specific parameters and functions.
+    # sys.stdin: Standard input stream (usually the keyboard).
+    # sys.stdin.fileno(): Returns the file descriptor (an integer handle) for the input stream. This is needed for low-level terminal operations.
+    fd = sys.stdin.fileno()
+    # termios library: Allows you to configure terminal I/O settings on Unix systems.
+    # termios.tcgetattr(fd): Gets the current terminal settings for the file descriptor fd and saves them. This is so you can restore them later.
+    old_settings = termios.tcgetattr(fd)
 
     rclpy.init()
     spaceship = Spaceship()
