@@ -160,10 +160,13 @@ class Spaceship(Node):
 
     def shutdown_hook(self, fd, old_settings):
         self.centering_enabled = False
-        self.force_node.set_forces(
-            0, 0, 0, 0, 0, 0, frame_id=self.latest_odo.header.frame_id
-        )
-        print("Shutting down spaceship bridge...")
+        try:
+            self.get_logger().info("Sending zero forces before shutdown...")
+            self.force_node.set_forces(0, 0, 0, 0, 0, 0, frame_id="1234567890")
+            print("Shutting down spaceship bridge...")
+        except Exception:
+            print("Something went wrong while sending zero forces.")
+
         time.sleep(1)
         # Save framelist to CSV
         try:
@@ -398,7 +401,10 @@ def main():
     try:
         rclpy.spin(spaceship)  # ONLY ONE NODE TO SPIN
     except KeyboardInterrupt:
-        rclpy.spin(spaceship)  # Continue spinning to process shutdown
+        spaceship.get_logger().info("KeyboardInterrupt, shutting down...")
+        spaceship.get_logger().info(
+            "I recommed pressing 'q' to shutdown properly."
+        )
         spaceship.shutdown_hook(fd, old_settings)
 
 
