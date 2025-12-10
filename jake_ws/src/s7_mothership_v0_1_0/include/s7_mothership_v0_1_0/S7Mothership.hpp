@@ -797,22 +797,7 @@ public:
             // Response time monitor
             if (showrtvalues)
             {
-                uint64_t avgrt;
-                uint16_t minrt;
-                uint16_t maxrt;
-
-                CSVLogger_->getAvgResponseTime(avgrt);
-                CSVLogger_->getMinMaxResponseTime(minrt, maxrt);
-
-                struct winsize w;
-                ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-                int lastRow = w.ws_row;
-                // int lastCol = w.ws_col;
-
-                std::cout << "\033[1;1H\033[2K";
-                std::cout << COLOR_MAGENTA << "       Response times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << "\n";
-                std::cout << "       _________________________________________________________________________________" << COLOR_RESET;
-                std::cout << "\033[" << lastRow << ";1H";
+                showResponseTime();
             }
 #endif
 
@@ -859,28 +844,8 @@ public:
             // Input Management step
             getUserInput();
 
-#ifdef DEBUG_RESPONSE_TIME
-            // Response time monitor
-            if (showrtvalues)
-            {
-                uint64_t avgrt;
-                uint16_t minrt;
-                uint16_t maxrt;
-
-                CSVLogger_->getAvgResponseTime(avgrt);
-                CSVLogger_->getMinMaxResponseTime(minrt, maxrt);
-
-                struct winsize w;
-                ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-                int lastRow = w.ws_row;
-                // int lastCol = w.ws_col;
-
-                std::cout << "\033[1;1H\033[2K";
-                std::cout << COLOR_MAGENTA << "       Response times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << "\n";
-                std::cout << "       _________________________________________________________________________________" << COLOR_RESET;
-                std::cout << "\033[" << lastRow << ";1H";
-            }
-#endif
+            // Update status monitor at the top of the terminal
+            showStatus();
 
             // Timing control
             auto elapsed = steady_clock::now() - start;
@@ -1016,6 +981,34 @@ private:
         std::cout << COLOR_WHITE << "       Show response time   " << COLOR_RESET << " : r | (only works while logging response time, and misaligns display)\n";
         std::cout << COLOR_RED << "       EXIT                 " << COLOR_RESET << " : q\n";
         std::cout << "\n";
+    }
+
+    void showStatus()
+    {
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+        int lastRow = w.ws_row;
+        // int lastCol = w.ws_col;
+
+        std::cout << "\033[1;1H\033[2K";
+        
+
+#ifdef DEBUG_RESPONSE_TIME
+        if (showrtvalues)
+        {
+            uint64_t avgrt;
+            uint16_t minrt;
+            uint16_t maxrt;
+
+            CSVLogger_->getAvgResponseTime(avgrt);
+            CSVLogger_->getMinMaxResponseTime(minrt, maxrt);
+
+            std::cout << COLOR_MAGENTA << "       Response times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << "\n";
+            std::cout << "       _________________________________________________________________________________" << COLOR_RESET;
+        }
+#endif
+
+        std::cout << "\033[" << lastRow << ";1H";
     }
 
 private:
