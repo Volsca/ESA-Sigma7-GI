@@ -77,6 +77,7 @@ class Spaceship(Node):
         self.dirb = 0.0
         self.dirg = 0.0
 
+        self.dir_reset = False
         self.force_enabled = False
         self.directional_enabled = False
         self.centering_enabled = False
@@ -424,6 +425,13 @@ def KeyInput(spaceship, fd=None, old_settings=None):
                 spaceship.get_logger().info(
                     f"Directional Control mode {'ENABLED Press (i/j/k/l) to set direction.' if spaceship.directional_enabled else 'DISABLED'} (d). "
                 )
+                if not spaceship.directional_enabled:
+                    spaceship.dirx = 0.0
+                    spaceship.diry = 0.0
+                    spaceship.dirz = 0.0
+                    spaceship.force_node.set_forces(
+                        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, frame_id="1234567890"
+                    )
 
             elif (
                 ch == "i"
