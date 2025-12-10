@@ -793,13 +793,8 @@ public:
             // Input Management step
             getUserInput();
 
-#ifdef DEBUG_RESPONSE_TIME
-            // Response time monitor
-            if (showrtvalues)
-            {
-                showResponseTime();
-            }
-#endif
+            // Update status monitor at the top of the terminal
+            showStatus();
 
             // Timing control
             auto elapsed = steady_clock::now() - start;
@@ -897,12 +892,12 @@ public:
                 if ((*CurrentMode_) == S7Mode::FREE)
                 {
                     (*CurrentMode_) = S7Mode::FORCEFEEDBACK;
-                    std::cout << "      Force-Feedback activated.\n";
+                    // std::cout << "      Force-Feedback activated.\n";
                 }
                 else
                 {
                     (*CurrentMode_) = S7Mode::FREE;
-                    std::cout << "      Force-Feedback deactivated.\n";
+                    // std::cout << "      Force-Feedback deactivated.\n";
                 }
                 break;
             }
@@ -911,11 +906,11 @@ public:
 #ifdef DEBUG_RESPONSE_TIME
                 if (showrtvalues)
                 {
-                    std::cout << "       Response time values shown.\n";
+                    // std::cout << "       Response time values shown.\n";
                 }
                 else
                 {
-                    std::cout << "       Response time values hidden.\n";
+                    // std::cout << "       Response time values hidden.\n";
                 }
 #else
                 std::cout << COLOR_RED << "       Response Time logging not turned on." << COLOR_RESET << "\n";
@@ -923,7 +918,7 @@ public:
                 break;
             default:
             {
-                std::cout << "      Unrecognised input.\n";
+                std::cout << "       Unrecognised input.\n";
                 break;
             }
             }
@@ -990,25 +985,50 @@ private:
         int lastRow = w.ws_row;
         // int lastCol = w.ws_col;
 
-        std::cout << "\033[1;1H\033[2K";
-        
+        // Define values regardless of DEBUG_RESPONSE_TIME
+        // as otherwise they are out of scope
+        uint64_t avgrt = 0;
+        uint16_t minrt = 0;
+        uint16_t maxrt = 0;
 
+        // ffStatus
+        std::string ffStatus;
+        if ((*CurrentMode_) == FORCEFEEDBACK)
+        {
+            ffStatus = "activated";
+        }
+        else
+        {
+            ffStatus = "deactivated";
+        }
+
+        // rtMonitorStatus & rt values
+        std::string rtMonitorStatus = "response time logging deactivated";
 #ifdef DEBUG_RESPONSE_TIME
         if (showrtvalues)
         {
-            uint64_t avgrt;
-            uint16_t minrt;
-            uint16_t maxrt;
+            rtMonitorStatus = "activated";
 
             CSVLogger_->getAvgResponseTime(avgrt);
             CSVLogger_->getMinMaxResponseTime(minrt, maxrt);
-
-            std::cout << COLOR_MAGENTA << "       Response times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << "\n";
-            std::cout << "       _________________________________________________________________________________" << COLOR_RESET;
+        }
+        else
+        {
+            rtMonitorStatus = "deactivated";
         }
 #endif
 
-        std::cout << "\033[" << lastRow << ";1H";
+        // Print status
+        std::cout << "\033[1;1H\033[2K" << COLOR_MAGENTA;
+        std::cout << "       Force-Feedback : " << ffStatus << " | Response time monitoring : " << rtMonitorStatus;
+#ifdef DEBUG_RESPONSE_TIME
+        if (showrtvalues)
+        {
+            std::cout << "       Response times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << "\n";
+            std::cout << "       _________________________________________________________________________________";
+        }
+#endif
+        std::cout << COLOR_RESET << "\033[" << lastRow << ";1H";
     }
 
 private:
