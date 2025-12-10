@@ -732,7 +732,7 @@ public:
         // Controller initialization
         control_thread_ = std::thread(&S7Mothership::initThread, this);
 
-        std::cout << COLOR_BLUE << "       Initializing main thread\n"
+        std::cout << COLOR_GREEN << "       Initializing main thread\n"
                   << COLOR_RESET;
         loop_timer_ = node_->create_wall_timer(2ms, std::bind(&S7Mothership::loop, this));
 
@@ -807,10 +807,11 @@ public:
                 struct winsize w;
                 ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
                 int lastRow = w.ws_row;
-                //int lastCol = w.ws_col;
+                // int lastCol = w.ws_col;
 
                 std::cout << "\033[1;1H\033[2K";
-                std::cout << COLOR_MAGENTA << "       Response times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << COLOR_RESET;
+                std::cout << COLOR_MAGENTA << "       Response times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << "\n";
+                std::cout << "       _________________________________________________________________________________" << COLOR_RESET;
                 std::cout << "\033[" << lastRow << ";1H";
             }
 #endif
@@ -872,10 +873,11 @@ public:
                 struct winsize w;
                 ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
                 int lastRow = w.ws_row;
-                //int lastCol = w.ws_col;
+                // int lastCol = w.ws_col;
 
                 std::cout << "\033[1;1H\033[2K";
-                std::cout << "       Response times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt;
+                std::cout << COLOR_MAGENTA << "       Response times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << "\n";
+                std::cout << "       _________________________________________________________________________________" << COLOR_RESET;
                 std::cout << "\033[" << lastRow << ";1H";
             }
 #endif
@@ -941,7 +943,7 @@ public:
             }
             case 'r':
                 showrtvalues = !showrtvalues;
-
+#ifdef DEBUG_RESPONSE_TIME
                 if (showrtvalues)
                 {
                     std::cout << "       Response time values shown.\n";
@@ -950,6 +952,9 @@ public:
                 {
                     std::cout << "       Response time values hidden.\n";
                 }
+#else
+                std::cout << COLOR_RED << "       Response Time logging not turned on." << COLOR_RESET << "\n";
+#endif
                 break;
             default:
             {
@@ -966,7 +971,7 @@ public:
      */
     void initThread()
     {
-        std::cout << COLOR_BLUE << "       Initializing connexion\n"
+        std::cout << COLOR_GREEN << "       Initializing connexion\n"
                   << COLOR_RESET;
         if (Controller_->initialise())
         {
@@ -1008,7 +1013,7 @@ private:
         std::cout << "\n";
         std::cout << "        --- Control legend ---\n";
         std::cout << COLOR_CYAN << "       Toggle Force-Feedback" << COLOR_RESET << " : m\n";
-        std::cout << COLOR_WHITE << "       Show response time   " << COLOR_RESET << " : r | (only works while logging response time)\n";
+        std::cout << COLOR_WHITE << "       Show response time   " << COLOR_RESET << " : r | (only works while logging response time, and misaligns display)\n";
         std::cout << COLOR_RED << "       EXIT                 " << COLOR_RESET << " : q\n";
         std::cout << "\n";
     }
