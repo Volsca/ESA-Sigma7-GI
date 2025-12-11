@@ -1024,9 +1024,19 @@ private:
 #ifdef DEBUG_RESPONSE_TIME
         if (showrtvalues)
         {
-            std::cout << "       Response times | Average : " << avgrt << " | Max : " << maxrt << " | Min : " << minrt << "\n";
-            std::cout << "       _________________________________________________________________________________";
+            std::cout << "\033[2;1H\033[2K";
+            std::cout << "       Response times | Average : " << avgrt << " us" << " | Max : " << maxrt << " us" << " | Min : " << minrt << " us";
+            std::cout << "\033[3;1H\033[2K";
+            std::cout << "       _________________________________________________________________________________                                        ";
         }
+        else
+        {
+            std::cout << "\033[2;1H\033[2K";
+            std::cout << "       _________________________________________________________________________________                                        ";
+        }
+#else
+        std::cout << "\033[2;1H\033[2K";
+        std::cout << "       _________________________________________________________________________________                                        ";
 #endif
         std::cout << COLOR_RESET << "\033[" << lastRow << ";1H";
     }
